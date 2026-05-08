@@ -1,0 +1,233 @@
+---
+title: "TuneBoostTreeBayesian: Bayesian Tuning for Binary Boosted Trees"
+author: "TuneBoostTreeBayesian authors"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{TuneBoostTreeBayesian: Bayesian Tuning for Binary Boosted Trees}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
+```
+
+# Introdução
+
+`TuneBoostTreeBayesian` foi desenhado para ajustar modelos binários de árvores boosted em dados tabulares, preservando uma API principal pequena e deslocando detalhes avançados para funções de configuração. O pacote combina validação cruzada estratificada, cache de objetos nativos, early stopping, warm start, PR-AUC otimizado e uma ponte ask/tell com Limbo.
+
+O uso mínimo é:
+
+```{r}
+library(TuneBoostTreeBayesian)
+
+resultado <- TuneBoostTreeBayesian(
+  formula = y ~ x1 + x2 + x3,
+  data = treino,
+  initial = 10L,
+  nIter = 30L
+)
+```
+
+# Motivação
+
+Árvores boosted são fortes em dados tabulares, mas o ajuste manual de hiperparâmetros é caro e propenso a erro. O pacote tenta reduzir esses problemas com três princípios:
+
+1. **API enxuta**: `formula`, `data`, `initial`, `nIter` e blocos de configuração.
+2. **Segurança por padrão**: validação de entrada, folds estratificados, cache e limites de CPU.
+3. **Desempenho quando disponível**: Limbo para propostas Bayesiana, XGBoost/LightGBM nativos e PR-AUC compilado.
+
+# Método
+
+## Fluxo de otimização
+
+1. A fórmula é analisada para encontrar resposta e preditores.
+2. `data` é normalizado para subsetting estável, aceitando `data.frame`, `tibble` e `data.table`.
+3. Preditores são convertidos para matriz numérica; entradas sparse-like são direcionadas a `Matrix` esparsa quando possível.
+4. Folds estratificados são criados uma única vez.
+5. Objetos nativos (`xgb.DMatrix` ou `lgb.Dataset`) são cacheados por fold.
+6. O otimizador propõe candidatos no espaço `search_space`.
+7. Cada candidato é avaliado por CV com early stopping.
+8. O melhor ponto é retornado com `trees` inferido do melhor número de iterações.
+
+## Ponte Limbo
+
+A ponte com Limbo usa arquivos CSV temporários. Isso mantém o objetivo em R, onde estão os dados e a CV, e delega apenas a proposta de novos pontos ao executável C++.
+
+```{r}
+optimizer <- TuneBoostTreeLimbo(
+  command = Sys.getenv("TBTB_LIMBO_COMMAND"),
+  fallback = FALSE,
+  acquisition = "ucb"
+)
+```
+
+# Parâmetros da função principal
+
+## `formula`
+
+Fórmula de duas partes com resposta binária e preditores numéricos.
+
+## `data`
+
+Tabela de treino. São aceitos `data.frame`, `tibble` e `data.table`. A entrada deve conter a resposta e todos os preditores declarados na fórmula.
+
+## `initial`
+
+Controla a inicialização:
+
+- `NULL`: sem pontos iniciais novos.
+- inteiro: número de pontos aleatórios iniciais.
+- tabela: warm start com colunas de parâmetros e `Value`.
+
+## `nIter`
+
+Número de iterações de otimização após a inicialização.
+
+## `engine`
+
+Pode ser `"xgboost"`, `"lightgbm"`, `TuneBoostTreeXgboost()` ou `TuneBoostTreeLightgbm()`.
+
+# Funções de configuração
+
+## Boosting: `TuneBoostTreeBoostParams()`
+
+Usa nomes compatíveis com `parsnip::boost_tree()`:
+
+```{r}
+boost <- TuneBoostTreeBoostParams(
+  trees = 500L,
+  stop_iter = 20L
+)
+```
+
+Parâmetros fixos opcionais (`learn_rate`, `tree_depth`, `min_n`, `loss_reduction`, `sample_size`, `mtry`) podem ser definidos aqui. Quando ficam `NULL`, são ajustados pelo espaço de busca.
+
+## Espaço de busca: `TuneBoostTreeSearchSpace()`
+
+```{r}
+search_space <- TuneBoostTreeSearchSpace(
+  learn_rate = c(0.01, 0.15),
+  tree_depth = c(2L, 10L),
+  min_n = c(1L, 50L),
+  loss_reduction = c(0, 5),
+  sample_size = c(0.5, 1),
+  mtry = c(0.3, 1),
+  max_bin = c(32L, 256L)
+)
+```
+
+## CV: `TuneBoostTreeCv()`
+
+```{r}
+cv <- TuneBoostTreeCv(folds = 10L)
+```
+
+A validação é estratificada para proteger a estimativa de PR-AUC em bases desbalanceadas.
+
+## Desbalanceamento: `TuneBoostTreeImbalance()`
+
+```{r}
+imbalance <- TuneBoostTreeImbalance(scale_pos_weight = "auto")
+```
+
+Valores de `scale_pos_weight`:
+
+- `"auto"`: razão maioria/minoria.
+- `NULL`: não usa peso de classe.
+- número positivo: peso fixo.
+
+Com balanceamento:
+
+```{r}
+my_balance <- function(data, formula, ratio = 0.7) {
+  data
+}
+
+imbalance <- TuneBoostTreeImbalance(
+  balance_fn = my_balance,
+  scale_pos_weight = "auto",
+  ratio = 0.7
+)
+```
+
+Argumentos em `...` são encaminhados apenas para `balance_fn`.
+
+## Performance: `TuneBoostTreePerformance()`
+
+```{r}
+performance <- TuneBoostTreePerformance(metric = "pr_auc", backend = "auto")
+```
+
+`backend = "auto"` tenta C, Fortran, Rfast e R base nessa ordem.
+
+## Controle e paralelismo
+
+```{r}
+control <- TuneBoostTreeControl(
+  seed = 42L,
+  parallel = "auto",
+  verbose = TRUE
+)
+```
+
+Para controle explícito:
+
+```{r}
+control <- TuneBoostTreeControl(
+  parallel = TuneBoostTreeParallel(
+    workers = 4L,
+    threads_per_worker = 2L,
+    strategy = "folds"
+  )
+)
+```
+
+# Cenários completos
+
+## Padrão seguro
+
+```{r}
+resultado <- TuneBoostTreeBayesian(
+  formula = y ~ .,
+  data = treino,
+  initial = 10L,
+  nIter = 30L
+)
+```
+
+## Produção com Limbo estrito
+
+```{r}
+resultado <- TuneBoostTreeBayesian(
+  formula = y ~ .,
+  data = treino,
+  optimizer = TuneBoostTreeLimbo(
+    command = Sys.getenv("TBTB_LIMBO_COMMAND"),
+    fallback = FALSE
+  ),
+  control = TuneBoostTreeControl(parallel = "auto"),
+  initial = 20L,
+  nIter = 60L
+)
+```
+
+## Ultra otimizado
+
+```{r}
+resultado <- TuneBoostTreeBayesianUltra(
+  formula = y ~ .,
+  data = treino,
+  initial = 20L,
+  nIter = 60L,
+  strict_limbo = TRUE
+)
+```
+
+# Referências
+
+- Cully, A., Chatzilygeroudis, K., Allocati, F., & Mouret, J.-B. (2018). Limbo: A Fast and Flexible Library for Bayesian Optimization. *Journal of Open Source Software*, 3(26), 545.
+- Chen, T., & Guestrin, C. (2016). XGBoost: A Scalable Tree Boosting System. *KDD 2016*.
+- Ke, G. et al. (2017). LightGBM: A Highly Efficient Gradient Boosting Decision Tree. *NeurIPS 2017*.
+- Davis, J., & Goadrich, M. (2006). The Relationship Between Precision-Recall and ROC Curves. *ICML 2006*.
+- Tidymodels/parsnip documentation for `boost_tree()`.

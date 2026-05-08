@@ -1,54 +1,36 @@
 # TuneBoostTreeBayesian
 
-`TuneBoostTreeBayesian` agora é um **pacote R** para ajuste Bayesiano de hiperparâmetros de árvores boosted binárias com XGBoost ou LightGBM. O pacote mantém validação cruzada estratificada, cache de folds, early stopping, warm start, predição final e backends de PR-AUC em C, Fortran, Rfast ou R base.
+`TuneBoostTreeBayesian` é um pacote R para ajuste Bayesiano de hiperparâmetros de árvores boosted binárias com XGBoost ou LightGBM. A API principal foi redesenhada para ficar curta e segura: os detalhes de validação cruzada, Limbo, paralelismo, balanceamento, scoring e engine ficam em funções auxiliares que retornam listas documentáveis.
 
-## Estrutura do pacote
+## API principal
 
-```text
-TuneBoostTreeBayesian/
-├── DESCRIPTION
-├── NAMESPACE
-├── R/
-│   └── TuneBoostTreeBayesian.R
-├── man/
-│   ├── FitBoostTreeModel.Rd
-│   ├── PerformanceBoostTreeModel.Rd
-│   ├── PredictBoostTreeModel.Rd
-│   ├── SplitDataBoostTreeFolds.Rd
-│   ├── TuneBoostTreeBayesian-package.Rd
-│   └── TuneBoostTreeBayesian.Rd
-├── src/
-│   ├── init.c
-│   ├── tbtb_native.c
-│   └── tbtb_native.f90
-└── README.md
+```r
+resultado <- TuneBoostTreeBayesian(
+  formula,
+  data,
+  initial = 10L,
+  nIter = 30L,
+  engine = "xgboost"
+)
 ```
 
-## O que foi otimizado
+Argumentos principais:
 
-1. **Sem recriar dados dentro da função objetivo**: os folds estratificados e objetos nativos (`xgb.DMatrix` ou `lgb.Dataset`) são criados uma única vez antes da otimização Bayesiana.
-2. **Sem oversubscription de CPU**: `nThreads` e `nWorkersFolds` são combinados para limitar o total de threads usadas por workers paralelos.
-3. **Cache por hiperparâmetro**: configurações equivalentes normalizadas não são reavaliadas.
-4. **Early stopping agressivo no tuning**: `nRoundsTuning` é separado de `nRoundsFinal`, evitando treinar milhares de rounds durante busca.
-5. **PR-AUC com múltiplos backends seguros**:
-   - `"c"`: implementação em C puro registrada como rotina nativa do pacote.
-   - `"fortran"`: implementação em Fortran puro registrada como rotina nativa do pacote.
-   - `"rfast"`: usa `Rfast::Order()` para acelerar a ordenação sem depender do código nativo do pacote.
-   - `"r"`: fallback 100% base R.
-   - `"auto"`: tenta C, depois Fortran, depois Rfast, depois R.
+- `formula`: fórmula binária, por exemplo `classe ~ x1 + x2`.
+- `data`: `data.frame`, `tibble` ou `data.table` com resposta e preditores.
+- `initial`: `NULL`, inteiro com número de pontos aleatórios iniciais, ou tabela (`data.frame`, `tibble`, `data.table`) com histórico de avaliações.
+- `nIter`: número de iterações de otimização após a inicialização.
+- `engine`: `"xgboost"`, `"lightgbm"`, `TuneBoostTreeXgboost()` ou `TuneBoostTreeLightgbm()`.
 
-> Segurança: se um backend opcional não estiver disponível, o código cai automaticamente para uma alternativa portável em R em vez de interromper um tuning longo.
+Os nomes públicos de hiperparâmetros seguem `parsnip::boost_tree()` sempre que aplicável: `trees`, `tree_depth`, `min_n`, `loss_reduction`, `sample_size`, `mtry`, `learn_rate` e `stop_iter`.
 
-## Instalação passo a passo
-
-### 1. Instale dependências R
+## Instalação
 
 ```r
 install.packages(c(
   "cli",
   "data.table",
   "Matrix",
-  "rBayesianOptimization",
   "xgboost",
   "Rfast",
   "modeldata",
@@ -56,109 +38,176 @@ install.packages(c(
 ))
 ```
 
-Para LightGBM, siga a instalação recomendada do pacote `lightgbm` para sua plataforma.
-
-### 2. Compile e instale o pacote
-
-A partir do diretório acima do repositório:
-
-```bash
-R CMD build tune_boost_tree_bayesian
-R CMD INSTALL TuneBoostTreeBayesian_0.1.0.tar.gz
-```
-
-Ou, durante desenvolvimento, a partir da raiz do repositório:
+Para LightGBM, siga a instalação recomendada do pacote `lightgbm`. Para Limbo, compile um executável ask/tell baseado em [`resibots/limbo`](https://github.com/resibots/limbo) e configure `TBTB_LIMBO_COMMAND`.
 
 ```bash
 R CMD INSTALL .
 ```
 
-Como o pacote contém `src/tbtb_native.c` e `src/tbtb_native.f90`, o `R CMD INSTALL` compila os backends C e Fortran automaticamente quando o toolchain do R está disponível.
-
-### 3. Valide a instalação
-
-```bash
-R CMD check TuneBoostTreeBayesian_0.1.0.tar.gz
-```
-
-## Processo de uso recomendado
-
-1. Carregue o pacote com `library(TuneBoostTreeBayesian)`.
-2. Prepare uma base binária com preditores numéricos.
-3. Rode `TuneBoostTreeBayesian()` com `prAucBackend = "auto"` para usar o backend mais rápido disponível.
-4. Treine o modelo final com `FitBoostTreeModel()` usando `resultado$bestHyperparameters`.
-5. Avalie em holdout com `PerformanceBoostTreeModel()`.
-6. Reaproveite `resultado$initGridDt` em novas execuções para warm start.
-
-## Exemplo completo com base binária do `modeldata`
-
-O exemplo usa `modeldata::attrition`, cuja variável `Attrition` é binária. Para manter a entrada compatível com a implementação atual, o exemplo seleciona preditores numéricos.
+## Cenário 1: uso padrão seguro
 
 ```r
-library(TuneBoostTreeBayesian)
-library(modeldata)
-library(rsample)
+resultado <- TuneBoostTreeBayesian(
+  formula = Attrition ~ Age + DailyRate + DistanceFromHome + MonthlyIncome,
+  data = train_data,
+  initial = 10L,
+  nIter = 30L
+)
+```
 
-data(attrition, package = "modeldata")
+Esse cenário usa:
 
-set.seed(2026)
-split <- initial_split(attrition, prop = 0.8, strata = Attrition)
-train_data <- training(split)
-test_data <- testing(split)
+- XGBoost com `tree_method = "hist"`.
+- Limbo se `TBTB_LIMBO_COMMAND` estiver configurado.
+- Fallback interno seguro se Limbo não estiver disponível.
+- `parallel = "auto"`.
+- PR-AUC backend `"auto"`.
+- `scale_pos_weight = "auto"`.
 
-numeric_predictors <- names(train_data)[vapply(train_data, is.numeric, logical(1))]
-formula_attrition <- reformulate(numeric_predictors, response = "Attrition")
+## Cenário 2: warm start com tibble ou data.table
+
+```r
+resultado_2 <- TuneBoostTreeBayesian(
+  formula = formula_attrition,
+  data = train_data,
+  initial = resultado_1$initial,
+  nIter = 20L
+)
+```
+
+Quando `initial` é tabular, a tabela deve conter as colunas de parâmetros (`learn_rate`, `tree_depth`, `min_n`, `sample_size`, `mtry`, `loss_reduction`, `max_bin`) e `Value`.
+
+## Cenário 3: configuração explícita de boosting
+
+```r
+resultado <- TuneBoostTreeBayesian(
+  formula = formula_attrition,
+  data = train_data,
+  boost = TuneBoostTreeBoostParams(
+    trees = 750L,
+    stop_iter = 25L
+  ),
+  search_space = TuneBoostTreeSearchSpace(
+    learn_rate = c(0.005, 0.12),
+    tree_depth = c(2L, 8L),
+    min_n = c(2L, 60L),
+    loss_reduction = c(0, 6),
+    sample_size = c(0.55, 1),
+    mtry = c(0.25, 1),
+    max_bin = c(64L, 384L)
+  ),
+  nIter = 40L
+)
+```
+
+## Cenário 4: Limbo estrito em produção/HPC
+
+```r
+resultado <- TuneBoostTreeBayesian(
+  formula = formula_attrition,
+  data = train_data,
+  optimizer = TuneBoostTreeLimbo(
+    command = Sys.getenv("TBTB_LIMBO_COMMAND"),
+    fallback = FALSE,
+    acquisition = "ucb",
+    kappa = 2.576,
+    eps = 0
+  ),
+  control = TuneBoostTreeControl(parallel = "auto", verbose = TRUE),
+  initial = 20L,
+  nIter = 60L
+)
+```
+
+Com `fallback = FALSE`, a execução falha antes da CV se o executável Limbo não estiver configurado ou não for executável.
+
+## Cenário 5: balanceamento com argumentos exclusivos
+
+Toda configuração que recebe uma função expõe `...` para parâmetros exclusivos dessa função. O balanceamento é chamado uma vez por fold como `balance_fn(data, formula, ...)`.
+
+```r
+meu_balanceador <- function(data, formula, target_ratio = 0.5, seed = 1L) {
+  set.seed(seed)
+  data
+}
 
 resultado <- TuneBoostTreeBayesian(
   formula = formula_attrition,
-  dataTrain = train_data,
-  nFolds = 5,
-  initPoints = 5,
-  nIter = 10,
-  nRoundsTuning = 250,
-  earlyStoppingRounds = 15,
-  nThreads = parallel::detectCores(logical = TRUE),
-  nWorkersFolds = 1,
-  engine_boost_tree = "xgboost",
-  prAucBackend = "auto",
-  verbose = TRUE
+  data = train_data,
+  imbalance = TuneBoostTreeImbalance(
+    balance_fn = meu_balanceador,
+    scale_pos_weight = "auto",
+    target_ratio = 0.7,
+    seed = 2026L
+  )
 )
-
-resultado$bestHyperparameters
-resultado$bestScore
-
-modelo_final <- FitBoostTreeModel(
-  formula = formula_attrition,
-  dataTrain = train_data,
-  hyperparameters = resultado$bestHyperparameters,
-  nThreads = parallel::detectCores(logical = TRUE),
-  engine_boost_tree = "xgboost"
-)
-
-avaliacao <- PerformanceBoostTreeModel(
-  modelObj = modelo_final,
-  testData = test_data,
-  formula = formula_attrition
-)
-
-avaliacao$prAuc
-avaliacao$confusionSummary
-head(avaliacao$predictions)
 ```
 
-## Como escolher backend de PR-AUC
+`scale_pos_weight` aceita:
 
-| Backend | Quando usar | Observação de segurança |
-| --- | --- | --- |
-| `auto` | Produção e uso geral | Escolhe a melhor opção disponível sem falhar por ausência de backend opcional. |
-| `c` | Máximo desempenho em scoring repetido | Usa a rotina C registrada no pacote quando o pacote foi compilado. |
-| `fortran` | Ambientes HPC ou comparação com toolchain Fortran | Usa a rotina Fortran registrada no pacote quando o pacote foi compilado. |
-| `rfast` | Quando `Rfast` já está instalado | Cai para `r` se o pacote não estiver instalado. |
-| `r` | Portabilidade e depuração | Mais lento, porém sem dependências opcionais. |
+- `"auto"`: calcula `qtd_majoritária / qtd_minoritária`; quando há balanceamento, o cálculo ocorre após o balanceamento de cada fold.
+- `numeric(1)`: usa peso fixo, com ou sem balanceamento.
+- `NULL`: não usa peso de classe.
 
-## Observações de desempenho
+## Cenário 6: paralelismo automático ou explícito
 
-- Para bases pequenas, `nWorkersFolds = 1` costuma ser mais rápido porque evita overhead de paralelização.
-- Para bases maiores, aumente `nWorkersFolds`, mas mantenha `nThreads * nWorkersFolds` próximo ao total de cores físicos/lógicos disponíveis.
-- Use `initGridDt = resultado$initGridDt` em novas execuções para continuar a busca Bayesiana sem perder avaliações já realizadas.
-- Prefira reduzir `nRoundsTuning` e usar `earlyStoppingRounds` em vez de aumentar rounds cegamente durante a otimização.
+```r
+resultado_auto <- TuneBoostTreeBayesian(
+  formula = formula_attrition,
+  data = train_data,
+  control = TuneBoostTreeControl(parallel = "auto")
+)
+
+resultado_manual <- TuneBoostTreeBayesian(
+  formula = formula_attrition,
+  data = train_data,
+  control = TuneBoostTreeControl(
+    parallel = TuneBoostTreeParallel(
+      workers = 4L,
+      threads_per_worker = 2L,
+      strategy = "folds"
+    )
+  )
+)
+```
+
+`parallel = "auto"` prioriza segurança: detecta cores, evita oversubscription, usa execução sequencial para bases pequenas e distribui folds quando há ganho provável.
+
+## Cenário 7: ultra otimizado
+
+```r
+resultado <- TuneBoostTreeBayesianUltra(
+  formula = formula_attrition,
+  data = train_data,
+  initial = 20L,
+  nIter = 60L,
+  command = Sys.getenv("TBTB_LIMBO_COMMAND"),
+  strict_limbo = TRUE
+)
+```
+
+Esse cenário usa orçamento maior, Limbo obrigatório, PR-AUC compilado quando disponível, `parallel = "auto"`, `scale_pos_weight = "auto"` e limites de busca mais amplos.
+
+## Interface R ⇄ Limbo
+
+A ponte usa protocolo de arquivos para manter o objetivo de CV no R e deixar a proposta Bayesiana no executável C++:
+
+1. O R cria diretório temporário por iteração.
+2. Escreve `bounds.csv`, `observations.csv` e `config.csv`.
+3. Chama `limboCommand bounds.csv observations.csv config.csv candidate.csv`.
+4. O executável escreve exatamente uma linha em `candidate.csv` com `learn_rate`, `tree_depth`, `min_n`, `sample_size`, `mtry`, `loss_reduction` e `max_bin`.
+5. O R valida finitude, limites e inteiros antes de executar CV.
+
+Veja `inst/limbo/README.md` para o contrato completo.
+
+## Referências científicas e de bibliotecas
+
+- Cully, A., Chatzilygeroudis, K., Allocati, F., & Mouret, J.-B. (2018). **Limbo: A Fast and Flexible Library for Bayesian Optimization**. *Journal of Open Source Software*, 3(26), 545. DOI: 10.21105/joss.00545. Projeto: <https://github.com/resibots/limbo>.
+- Chen, T., & Guestrin, C. (2016). **XGBoost: A Scalable Tree Boosting System**. *KDD 2016*. <https://arxiv.org/abs/1603.02754>.
+- Ke, G. et al. (2017). **LightGBM: A Highly Efficient Gradient Boosting Decision Tree**. *NeurIPS 2017*. <https://proceedings.neurips.cc/paper/2017/hash/6449f44a102fde848669bdd9eb6b76fa-Abstract.html>.
+- Tidymodels/parsnip. **Boosted trees — boost_tree**. <https://parsnip.tidymodels.org/reference/boost_tree.html>.
+- Davis, J., & Goadrich, M. (2006). **The Relationship Between Precision-Recall and ROC Curves**. *ICML 2006*.
+
+## Desenvolvimento e verificação
+
+Consulte `CHECKLIST.md` para o checklist completo de revisão de implementação, documentação, segurança, performance, empacotamento e validação estatística.
