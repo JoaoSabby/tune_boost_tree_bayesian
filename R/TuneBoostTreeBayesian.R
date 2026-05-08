@@ -28,18 +28,29 @@ TuneBoostTreeBoostParams <- function(trees = 500L, stop_iter = 20L, learn_rate =
 #' @param sample_size Numeric lower/upper bounds for `boost_tree(sample_size)`.
 #' @param mtry Numeric lower/upper bounds for predictor-sampling fraction.
 #' @param max_bin Integer lower/upper bounds for histogram bins used by XGBoost/LightGBM.
+#' @param lambda Numeric L2-regularization bounds. Tunable and recommended for most real data.
+#' @param alpha Numeric L1-regularization bounds. Tunable and recommended when many predictors may be weak or redundant.
+#' @param max_delta_step Numeric XGBoost logistic-step stabilization bounds; optional, most useful under severe imbalance.
+#' @param colsample_bytree Numeric per-tree feature-sampling bounds in `(0, 1]`; tunable and recommended when many predictors exist.
+#' @param colsample_bylevel Numeric per-level feature-sampling bounds in `(0, 1]`; optional XGBoost regularization.
+#' @param num_leaves Integer LightGBM leaf-count bounds; tunable and recommended for LightGBM.
+#' @param min_data_in_leaf Integer LightGBM minimum leaf-count bounds; tunable and recommended for LightGBM.
+#' @param scale_pos_weight Optional positive-class weight bounds. Usually leave `NULL` so `TuneBoostTreeImbalance(scale_pos_weight = "auto")` computes negatives/positives; tune only when validation data is large enough.
 #'
 #' @return A named list of optimizer bounds.
 #' @export
-TuneBoostTreeSearchSpace <- function(learn_rate = c(0.01, 0.15), tree_depth = c(2L, 10L), min_n = c(1, 50), loss_reduction = c(0, 5), sample_size = c(0.5, 1), mtry = c(0.3, 1), max_bin = c(32L, 256L)) {
-  out <- list(learn_rate = learn_rate, tree_depth = tree_depth, min_n = min_n, sample_size = sample_size, mtry = mtry, loss_reduction = loss_reduction, max_bin = max_bin)
+TuneBoostTreeSearchSpace <- function(learn_rate = c(0.01, 0.15), tree_depth = c(2L, 10L), min_n = c(1, 50), loss_reduction = c(0, 5), sample_size = c(0.5, 1), mtry = c(0.3, 1), max_bin = c(32L, 256L), lambda = c(0, 10), alpha = c(0, 5), max_delta_step = NULL, colsample_bytree = c(0.5, 1), colsample_bylevel = NULL, num_leaves = NULL, min_data_in_leaf = NULL, scale_pos_weight = NULL) {
+  out <- list(learn_rate = learn_rate, tree_depth = tree_depth, min_n = min_n, sample_size = sample_size, mtry = mtry, loss_reduction = loss_reduction, max_bin = max_bin, lambda = lambda, alpha = alpha, max_delta_step = max_delta_step, colsample_bytree = colsample_bytree, colsample_bylevel = colsample_bylevel, num_leaves = num_leaves, min_data_in_leaf = min_data_in_leaf, scale_pos_weight = scale_pos_weight)
+  out <- out[!vapply(out, is.null, logical(1L))]
   for (parameterName in names(out)) {
     value <- as.numeric(out[[parameterName]])
     if (length(value) != 2L || anyNA(value) || any(!is.finite(value)) || value[1L] >= value[2L]) cli::cli_abort("Search-space entry `{parameterName}` must contain finite increasing lower/upper bounds.")
     out[[parameterName]] <- value
   }
-  if (out$mtry[1L] <= 0 || out$mtry[2L] > 1) cli::cli_abort("`mtry` search bounds must be fractions in `(0, 1]`.")
-  if (out$sample_size[1L] <= 0 || out$sample_size[2L] > 1) cli::cli_abort("`sample_size` search bounds must be fractions in `(0, 1]`.")
+  for (fractionName in intersect(c("mtry", "sample_size", "colsample_bytree", "colsample_bylevel"), names(out))) {
+    if (out[[fractionName]][1L] <= 0 || out[[fractionName]][2L] > 1) cli::cli_abort("`{fractionName}` search bounds must be fractions in `(0, 1]`.")
+  }
+  if ("scale_pos_weight" %in% names(out) && out$scale_pos_weight[1L] <= 0) cli::cli_abort("`scale_pos_weight` search bounds must be positive.")
   class(out) <- c("tbtb_search_space", "list")
   out
 }
@@ -247,6 +258,10 @@ TuneBoostTreeBayesian <- function(formula, data, initial = 10L, nIter = 30L, eng
   timerStart <- proc.time()[["elapsed"]]
   parameterNames <- names(bounds)
   nFolds <- cv$folds
+  formulaInfoForTarget <- TuneBoostTree_ExtractFormulaInfo(formula, data)
+  preparedTargetForCv <- TuneBoostTree_PrepareTarget(data[[formulaInfoForTarget$targetName]], NULL)
+  nFolds <- TuneBoostTree_ValidateCvClassCounts(preparedTargetForCv$yData, nFolds)
+  cv$folds <- nFolds
   nRoundsTuning <- boost$trees
   earlyStoppingRounds <- boost$stop_iter
   seed <- control$seed
@@ -260,11 +275,11 @@ TuneBoostTreeBayesian <- function(formula, data, initial = 10L, nIter = 30L, eng
 
   useBalancedCv <- !is.null(imbalance$balance_fn)
   if (useBalancedCv) {
-    balancedFolds <- TuneBoostTree_PrepareBalancedFolds(formula, data, nFolds, imbalance$balance_fn, imbalance$balance_args, imbalance$scale_pos_weight, workerThreads, seed, engine_boost_tree)
+    balancedFolds <- TuneBoostTree_PrepareBalancedFolds(formula, data, nFolds, imbalance$balance_fn, imbalance$balance_args, imbalance$scale_pos_weight, workerThreads, seed, engine_boost_tree, preparedTargetForCv$targetLevels)
     scalePosWeightValue <- NULL
   } else {
-    formulaInfo <- TuneBoostTree_ExtractFormulaInfo(formula, data)
-    preparedTrain <- TuneBoostTree_PrepareMatrix(formula, data, featureTypes, NULL, formulaInfo)
+    formulaInfo <- formulaInfoForTarget
+    preparedTrain <- TuneBoostTree_PrepareMatrix(formula, data, featureTypes, preparedTargetForCv$targetLevels, formulaInfo)
     classCounts <- table(preparedTrain$yData)
     if (length(classCounts) != 2L || any(classCounts == 0L)) cli::cli_abort("`data` must contain both binary classes.")
     scalePosWeightValue <- TuneBoostTree_ResolveScalePosWeight(preparedTrain$yData, imbalance$scale_pos_weight)
@@ -308,13 +323,15 @@ TuneBoostTreeBayesian <- function(formula, data, initial = 10L, nIter = 30L, eng
   bestHyperparameters$trees <- as.integer(bestIteration)
   bestHyperparameters$stop_iter <- as.integer(earlyStoppingRounds)
   bestHyperparameters$eval_metric <- evalMetric
-  if (!useBalancedCv) bestHyperparameters$scale_pos_weight <- scalePosWeightValue
+  if (!useBalancedCv && is.null(bestHyperparameters$scale_pos_weight)) bestHyperparameters$scale_pos_weight <- scalePosWeightValue
+  bestThresholdSummary <- TuneBoostTree_OptimizeThresholdCv(balancedFolds, bestHyperparameters, bestHyperparameters$trees, seed, workerThreads, nWorkersFolds, evalMetric, engine_boost_tree, prAucBackend)
+  bestHyperparameters$threshold <- as.numeric(bestThresholdSummary$threshold)
 
   newInitGridDt <- TuneBoostTree_CreateInitGrid(evaluationLog, bounds)
   returnedInitGridDt <- TuneBoostTree_CombineInitGrid(initGridDt, newInitGridDt, bounds)
   if (isTRUE(control$verbose)) cli::cli_inform("Finished Bayesian tuning in {.val {round(proc.time()[['elapsed']] - timerStart, 2)}} seconds.")
 
-  list(bestHyperparameters = bestHyperparameters, bestScore = bestScore, initial = returnedInitGridDt, evaluationLog = evaluationLog, config = list(engine = engine, boost = boost, search_space = bounds, cv = cv, optimizer = optimizer, imbalance = imbalance, performance = performance, control = control, parallel = runtime))
+  list(bestHyperparameters = bestHyperparameters, bestScore = bestScore, bestThreshold = bestThresholdSummary, initial = returnedInitGridDt, evaluationLog = evaluationLog, config = list(engine = engine, boost = boost, search_space = bounds, cv = cv, optimizer = optimizer, imbalance = imbalance, performance = performance, control = control, parallel = runtime))
 }
 
 #' Resolve Engine Configuration
@@ -345,7 +362,7 @@ TuneBoostTree_ResolveSearchSpace <- function(search_space, boost) {
   if (!is.list(search_space)) cli::cli_abort("`search_space` must be created by `TuneBoostTreeSearchSpace()` or be a compatible list.")
   defaults <- TuneBoostTreeSearchSpace()
   defaults[names(search_space)] <- search_space
-  bounds <- TuneBoostTreeSearchSpace(learn_rate = defaults$learn_rate, tree_depth = defaults$tree_depth, min_n = defaults$min_n, loss_reduction = defaults$loss_reduction, sample_size = defaults$sample_size, mtry = defaults$mtry, max_bin = defaults$max_bin)
+  bounds <- do.call(TuneBoostTreeSearchSpace, defaults)
   fixedNames <- intersect(names(boost), names(bounds))[!vapply(boost[intersect(names(boost), names(bounds))], is.null, logical(1L))]
   for (parameterName in fixedNames) {
     value <- as.numeric(boost[[parameterName]])[1L]
@@ -444,11 +461,26 @@ TuneBoostTree_ResolveScalePosWeight <- function(yData, scale_pos_weight) {
   if (is.character(scale_pos_weight) && identical(scale_pos_weight, "auto")) {
     classCounts <- table(as.integer(yData))
     if (length(classCounts) != 2L || any(classCounts == 0L)) return(NULL)
-    return(as.numeric(max(classCounts) / min(classCounts)))
+    return(as.numeric(classCounts[["0"]] / classCounts[["1"]]))
   }
   as.numeric(scale_pos_weight)[1L]
 }
 
+
+
+#' Validate Cross-Validation Class Counts
+#' @noRd
+TuneBoostTree_ValidateCvClassCounts <- function(yData, nFolds) {
+  classCounts <- table(as.integer(yData))
+  if (length(classCounts) != 2L || any(classCounts == 0L)) cli::cli_abort("`data` must contain both binary classes.")
+  minClassCount <- min(as.integer(classCounts))
+  if (minClassCount < 2L) cli::cli_abort("The minority class must contain at least two observations for cross-validation.")
+  if (minClassCount < as.integer(nFolds)) {
+    cli::cli_warn("Minority class has {.val {minClassCount}} observation(s), fewer than requested {.val {nFolds}} fold(s); using {.val {minClassCount}} fold(s) so every validation fold contains both classes.")
+    return(as.integer(minClassCount))
+  }
+  as.integer(nFolds)
+}
 
 #' Extract Formula Metadata
 #'
@@ -476,14 +508,24 @@ TuneBoostTree_ExtractFormulaInfo <- function(formula, data) {
 #' @return A list with numeric target, levels, negative class, and positive class.
 #' @noRd
 TuneBoostTree_PrepareTarget <- function(targetData, targetLevels = NULL) {
+  if (!is.factor(targetData)) cli::cli_abort("The dependent/target variable must be a factor with exactly two levels.")
+  observedLevels <- levels(targetData)
+  if (length(observedLevels) != 2L) cli::cli_abort("The dependent/target factor must have exactly two levels.")
+  if (anyNA(targetData)) cli::cli_abort("The dependent/target factor must not contain missing values.")
   if (is.null(targetLevels)) {
-    targetLevels <- if (is.factor(targetData)) rev(levels(targetData)) else sort(unique(as.character(targetData))) # The factor reversal preserves the current implementation's positive-class convention.
+    classCounts <- table(targetData)
+    levelCounts <- as.integer(classCounts[observedLevels])
+    if (any(levelCounts == 0L)) cli::cli_abort("The dependent/target factor must contain observations for both levels.")
+    positiveClass <- if (levelCounts[1L] <= levelCounts[2L]) observedLevels[1L] else observedLevels[2L]
+    negativeClass <- setdiff(observedLevels, positiveClass)[1L]
+    targetLevels <- c(negativeClass, positiveClass)
   }
-  targetLevels <- as.character(targetLevels) # Character levels avoid factor code leakage when comparing labels.
-  positiveClass <- targetLevels[2L] # The second level is the positive class for binary logistic objectives.
-  negativeClass <- targetLevels[1L] # The first level is used for complementary probabilities and class output.
-  yData <- as.integer(as.character(targetData) == positiveClass) # Engines require numeric 0/1 labels for binary objectives.
-  list(yData = yData, targetLevels = targetLevels, negativeClass = negativeClass, positiveClass = positiveClass) # Keeping label metadata with y avoids recomputation in fit/predict helpers.
+  targetLevels <- as.character(targetLevels)
+  if (length(targetLevels) != 2L || anyNA(targetLevels) || !setequal(targetLevels, observedLevels)) cli::cli_abort("`targetLevels` must contain the two factor levels of the target.")
+  positiveClass <- targetLevels[2L]
+  negativeClass <- targetLevels[1L]
+  yData <- as.integer(as.character(targetData) == positiveClass)
+  list(yData = yData, targetLevels = targetLevels, negativeClass = negativeClass, positiveClass = positiveClass)
 }
 
 #' Prepare Numeric Feature Matrix
@@ -572,6 +614,16 @@ TuneBoostTree_GetDefaultBounds <- function() {
   TuneBoostTreeSearchSpace() # Public search-space defaults use parsnip boost_tree names and include max_bin for native histogram engines.
 }
 
+
+#' Read Optional Hyperparameter
+#' @noRd
+TuneBoostTree_GetHyperparameter <- function(hyperparameters, parameterName, default = NULL) {
+  if (!parameterName %in% names(hyperparameters) || is.null(hyperparameters[[parameterName]])) return(default)
+  value <- as.numeric(hyperparameters[[parameterName]])[1L]
+  if (!is.finite(value)) return(default)
+  value
+}
+
 #' Build Engine Parameters
 #'
 #' @param hyperparameters Named list of canonical tuner hyperparameters.
@@ -593,13 +645,32 @@ TuneBoostTree_BuildParams <- function(hyperparameters, nThreads = 1L, scalePosWe
   mtryValue <- as.numeric(hyperparameters[["mtry"]]) # The public API treats mtry as a safe predictor-sampling fraction in (0, 1].
   lossReductionValue <- as.numeric(hyperparameters[["loss_reduction"]]) # Split-gain regularization uses different names but same intent.
   maxBinValue <- as.integer(round(as.numeric(hyperparameters[["max_bin"]]))) # Histogram bin count must be integral for both engines.
+  lambdaValue <- TuneBoostTree_GetHyperparameter(hyperparameters, "lambda", NULL)
+  alphaValue <- TuneBoostTree_GetHyperparameter(hyperparameters, "alpha", NULL)
+  maxDeltaStepValue <- TuneBoostTree_GetHyperparameter(hyperparameters, "max_delta_step", NULL)
+  colsampleBytreeValue <- TuneBoostTree_GetHyperparameter(hyperparameters, "colsample_bytree", NULL)
+  colsampleBylevelValue <- TuneBoostTree_GetHyperparameter(hyperparameters, "colsample_bylevel", NULL)
+  numLeavesValue <- TuneBoostTree_GetHyperparameter(hyperparameters, "num_leaves", NULL)
+  minDataInLeafValue <- TuneBoostTree_GetHyperparameter(hyperparameters, "min_data_in_leaf", NULL)
+  tunedScalePosWeight <- TuneBoostTree_GetHyperparameter(hyperparameters, "scale_pos_weight", NULL)
+  scalePosWeight <- if (!is.null(tunedScalePosWeight)) tunedScalePosWeight else scalePosWeight
   scalePosWeight <- if (is.null(scalePosWeight)) NULL else as.numeric(scalePosWeight)[1L]
   if (engine_boost_tree == "xgboost") {
     params <- list(objective = "binary:logistic", eval_metric = evalMetric, grow_policy = "depthwise", tree_method = "hist", max_bin = maxBinValue, max_depth = treeDepthValue, eta = learnRateValue, gamma = lossReductionValue, subsample = sampleSizeValue, min_child_weight = minNValue, colsample_bynode = mtryValue, nthread = as.integer(nThreads), seed = as.integer(seed))
+    if (!is.null(lambdaValue)) params$lambda <- as.numeric(lambdaValue)
+    if (!is.null(alphaValue)) params$alpha <- as.numeric(alphaValue)
+    if (!is.null(maxDeltaStepValue)) params$max_delta_step <- as.numeric(maxDeltaStepValue)
+    if (!is.null(colsampleBytreeValue)) params$colsample_bytree <- as.numeric(colsampleBytreeValue)
+    if (!is.null(colsampleBylevelValue)) params$colsample_bylevel <- as.numeric(colsampleBylevelValue)
     if (!is.null(scalePosWeight)) params$scale_pos_weight <- scalePosWeight
     return(params)
   }
   params <- list(objective = "binary", boosting = "gbdt", metric = "average_precision", max_bin = maxBinValue, max_depth = treeDepthValue, learning_rate = learnRateValue, min_gain_to_split = lossReductionValue, bagging_fraction = sampleSizeValue, bagging_freq = 1L, min_sum_hessian_in_leaf = minNValue, feature_fraction_bynode = mtryValue, num_threads = as.integer(nThreads), seed = as.integer(seed), verbosity = -1L, verbose = -1L)
+  if (!is.null(lambdaValue)) params$lambda_l2 <- as.numeric(lambdaValue)
+  if (!is.null(alphaValue)) params$lambda_l1 <- as.numeric(alphaValue)
+  if (!is.null(colsampleBytreeValue)) params$feature_fraction <- as.numeric(colsampleBytreeValue)
+  if (!is.null(numLeavesValue)) params$num_leaves <- as.integer(round(as.numeric(numLeavesValue)))
+  if (!is.null(minDataInLeafValue)) params$min_data_in_leaf <- as.integer(round(as.numeric(minDataInLeafValue)))
   if (!is.null(scalePosWeight)) params$scale_pos_weight <- scalePosWeight
   params
 }
@@ -620,9 +691,9 @@ TuneBoostTree_BuildParams <- function(hyperparameters, nThreads = 1L, scalePosWe
 #'
 #' @return A list of fold objects containing cached engine datasets, labels, weights, and metadata.
 #' @noRd
-TuneBoostTree_PrepareBalancedFolds <- function(formula, data, nFolds, balanceFn, balanceArgs = list(), scalePosWeightSetting = "auto", nThreads = 1L, seed = 42L, engine_boost_tree = "xgboost") {
+TuneBoostTree_PrepareBalancedFolds <- function(formula, data, nFolds, balanceFn, balanceArgs = list(), scalePosWeightSetting = "auto", nThreads = 1L, seed = 42L, engine_boost_tree = "xgboost", targetLevels = NULL) {
   formulaInfo <- TuneBoostTree_ExtractFormulaInfo(formula, data) # Parsing once keeps all balanced folds on the same feature contract.
-  preparedFull <- TuneBoostTree_PrepareMatrix(formula, data, NULL, NULL, formulaInfo) # Full data is needed only to create stratified fold indices.
+  preparedFull <- TuneBoostTree_PrepareMatrix(formula, data, NULL, targetLevels, formulaInfo) # Full data is needed only to create stratified fold indices.
   folds <- TuneBoostTree_CreateStratifiedFolds(preparedFull$yData, nFolds, seed) # Stratification is computed before balancing to evaluate on natural holdout distributions.
   balancedFolds <- vector("list", length(folds)) # Preallocation keeps fold setup linear in the number of folds.
   for (foldId in seq_along(folds)) {
@@ -630,7 +701,7 @@ TuneBoostTree_PrepareBalancedFolds <- function(formula, data, nFolds, balanceFn,
     trainData <- data[setdiff(seq_len(nrow(data)), testIndex), , drop = FALSE] # Only training rows are passed to the external balancing strategy.
     testData <- data[testIndex, , drop = FALSE] # Test rows are cached once to eliminate repeated DMatrix/Dataset creation.
     balancedTrain <- do.call(balanceFn, c(list(data = trainData, formula = formula), balanceArgs)) # Calling the balancer exactly once per fold avoids explosive work inside Bayesian iterations while forwarding function-specific arguments.
-    preparedTrain <- TuneBoostTree_PrepareMatrix(formula, balancedTrain, NULL, NULL, formulaInfo) # Balanced data may be dense, so the sparse heuristic decides rather than forcing dgCMatrix.
+    preparedTrain <- TuneBoostTree_PrepareMatrix(formula, balancedTrain, NULL, preparedFull$targetLevels, formulaInfo) # Balanced data may be dense, so the sparse heuristic decides rather than forcing dgCMatrix.
     if (inherits(preparedTrain$xMatrix, "sparseMatrix")) preparedTrain$xMatrix <- as.matrix(preparedTrain$xMatrix) # ADASYN/NearMiss outputs are treated as dense to avoid sparse-conversion overhead after balancing.
     preparedTest <- TuneBoostTree_PrepareMatrix(formula, testData, NULL, preparedTrain$targetLevels, formulaInfo) # Test levels follow the balanced train levels to preserve class mapping.
     trainObject <- TuneBoostTree_CreateDataObject(preparedTrain$xMatrix, preparedTrain$yData, preparedTrain$featureTypes, nThreads, engine_boost_tree) # Cached train object amortizes engine data conversion across all hyperparameter evaluations.
@@ -680,7 +751,8 @@ TuneBoostTree_RunCvManual <- function(balancedFolds, hyperparameters, nRounds, e
   }
   foldScores <- vapply(foldResults, `[[`, numeric(1L), "score") # Numeric extraction keeps aggregation independent of backend result classes.
   foldBestIter <- vapply(foldResults, `[[`, integer(1L), "bestIteration") # Best iterations are averaged to provide a stable final round count.
-  list(score = as.numeric(mean(foldScores, na.rm = TRUE)), bestIteration = as.integer(round(mean(foldBestIter, na.rm = TRUE))), foldScores = foldScores) # Mean PR-AUC and mean early-stop iteration summarize one hyperparameter evaluation.
+  if (anyNA(foldScores)) cli::cli_abort("At least one validation fold produced undefined PR-AUC; reduce `folds` or provide more positive-class observations.")
+  list(score = as.numeric(mean(foldScores)), bestIteration = as.integer(round(mean(foldBestIter))), foldScores = foldScores) # Mean PR-AUC and mean early-stop iteration summarize one hyperparameter evaluation.
 }
 
 #' Evaluate One Bayesian Parameter Set
@@ -697,9 +769,11 @@ TuneBoostTree_RunCvManual <- function(balancedFolds, hyperparameters, nRounds, e
 #'
 #' @return A list with `Score` and `Pred` for optimizer adapters.
 #' @noRd
-TuneBoostTree_EvaluateCv <- function(learn_rate, tree_depth, min_n, sample_size, mtry, loss_reduction, max_bin) {
-  hyperparameters <- list(learn_rate = learn_rate, tree_depth = tree_depth, min_n = min_n, sample_size = sample_size, mtry = mtry, loss_reduction = loss_reduction, max_bin = max_bin) # Parsnip boost_tree names keep the objective engine-neutral.
+TuneBoostTree_EvaluateCv <- function(...) {
+  hyperparameters <- list(...)
+  hyperparameters <- hyperparameters[parameterNames]
   normalizedData <- TuneBoostTree_NormalizeParams(as.data.frame(hyperparameters, stringsAsFactors = FALSE), parameterNames) # Normalization prevents cache misses from equivalent rounded integer parameters.
+  hyperparameters <- as.list(normalizedData[1L, parameterNames, drop = FALSE])
   cacheKey <- paste(unlist(normalizedData[1L, parameterNames, drop = FALSE], use.names = FALSE), collapse = "|") # The required pipe-joined key is compact and deterministic.
   if (exists(cacheKey, envir = cacheEnv, inherits = FALSE)) {
     cachedResult <- get(cacheKey, envir = cacheEnv, inherits = FALSE) # Hash lookup avoids duplicate CV runs proposed by the optimizer.
@@ -709,7 +783,7 @@ TuneBoostTree_EvaluateCv <- function(learn_rate, tree_depth, min_n, sample_size,
   scoreValue <- as.numeric(cvSummary$score) # A scalar score is needed by optimizer adapters.
   bestIteration <- as.integer(cvSummary$bestIteration) # Logging best iteration lets the final model avoid retuning rounds.
   logIndex <<- logIndex + 1L # Updating the call-local cursor avoids growing a data.frame inside the hot path.
-  evaluationLogList[[logIndex]] <<- data.frame(learn_rate = as.numeric(normalizedData$learn_rate), tree_depth = as.numeric(normalizedData$tree_depth), min_n = as.numeric(normalizedData$min_n), sample_size = as.numeric(normalizedData$sample_size), mtry = as.numeric(normalizedData$mtry), loss_reduction = as.numeric(normalizedData$loss_reduction), max_bin = as.numeric(normalizedData$max_bin), Value = scoreValue, bestIteration = bestIteration, stringsAsFactors = FALSE) # List-backed logging preserves the original high-performance pattern.
+  evaluationLogList[[logIndex]] <<- data.frame(normalizedData[1L, parameterNames, drop = FALSE], Value = scoreValue, bestIteration = bestIteration, stringsAsFactors = FALSE) # List-backed logging preserves the original high-performance pattern.
   assign(cacheKey, list(score = scoreValue, bestIteration = bestIteration), envir = cacheEnv) # The per-call cache prevents repeated expensive CV evaluations.
   list(Score = scoreValue, Pred = 0) # Optimizer adapters expect this stable list contract.
 }
@@ -765,6 +839,150 @@ TuneBoostTree_RunOneFold <- function(foldData, hyperparameters, nRounds, earlySt
     predictedProbability <- as.numeric(stats::predict(foldModel, data = foldData$xTest)) # Matrix prediction follows LightGBM booster prediction semantics while Dataset creation remains cached for training.
   }
   list(score = TuneBoostTree_CalculatePrAuc(foldData$yTest, predictedProbability, backend = prAucBackend), bestIteration = bestIterFold) # PR-AUC is computed consistently across engines for objective comparability.
+}
+
+
+#' Run Hyperparameter Optimizer
+#' @noRd
+TuneBoostTree_RunOptimizer <- function(objective, bounds, initGridDt = NULL, initPoints = 10L, nIter = 30L, acq = "ucb", kappa = 2.576, eps = 0, verbose = TRUE, seed = 42L, optimizerBackend = "internal", limboCommand = NA_character_, limboFallback = TRUE) {
+  if (identical(optimizerBackend, "limbo")) {
+    if (!is.na(limboCommand) && nzchar(limboCommand) && nzchar(Sys.which(limboCommand))) {
+      cli::cli_warn("Limbo command integration is not available in this R-only build; using the internal optimizer adapter.")
+      return(TuneBoostTree_RunInternalOptimizer(objective, bounds, initGridDt, initPoints, nIter, seed))
+    }
+    if (!isTRUE(limboFallback)) cli::cli_abort("Limbo optimizer command is not available and `fallback = FALSE`.")
+    cli::cli_warn("Limbo optimizer command is not available; using the internal optimizer fallback.")
+    return(TuneBoostTree_RunInternalOptimizer(objective, bounds, initGridDt, initPoints, nIter, seed))
+  }
+  if (identical(optimizerBackend, "rBayesianOptimization") && requireNamespace("rBayesianOptimization", quietly = TRUE)) {
+    return(TuneBoostTree_RunRBayesianOptimization(objective, bounds, initGridDt, initPoints, nIter, acq, kappa, eps, verbose, seed))
+  }
+  if (identical(optimizerBackend, "rBayesianOptimization")) cli::cli_warn("Package {.pkg rBayesianOptimization} is not available; using the internal optimizer fallback.")
+  TuneBoostTree_RunInternalOptimizer(objective, bounds, initGridDt, initPoints, nIter, seed)
+}
+
+#' Run Internal Safe Optimizer
+#' @noRd
+TuneBoostTree_RunInternalOptimizer <- function(objective, bounds, initGridDt = NULL, initPoints = 10L, nIter = 30L, seed = 42L) {
+  set.seed(as.integer(seed))
+  parameterNames <- names(bounds)
+  candidates <- TuneBoostTree_SampleCandidates(bounds, as.integer(initPoints) + as.integer(nIter))
+  if (!is.null(initGridDt) && nrow(initGridDt) > 0L) {
+    warmStart <- as.data.frame(initGridDt[, parameterNames, drop = FALSE], stringsAsFactors = FALSE)
+    candidates <- rbind(warmStart, candidates)
+  }
+  if (nrow(candidates) == 0L) cli::cli_abort("Optimizer received no candidate hyperparameters to evaluate.")
+  bestValue <- -Inf
+  bestPar <- NULL
+  for (rowId in seq_len(nrow(candidates))) {
+    candidate <- as.list(candidates[rowId, parameterNames, drop = FALSE])
+    result <- do.call(objective, candidate)
+    value <- as.numeric(result$Score)[1L]
+    if (is.finite(value) && value > bestValue) {
+      bestValue <- value
+      bestPar <- candidate
+    }
+  }
+  if (is.null(bestPar)) cli::cli_abort("All optimizer candidate evaluations failed or returned non-finite scores.")
+  list(Best_Par = bestPar, Best_Value = bestValue, History = candidates)
+}
+
+#' Run rBayesianOptimization Backend
+#' @noRd
+TuneBoostTree_RunRBayesianOptimization <- function(objective, bounds, initGridDt = NULL, initPoints = 10L, nIter = 30L, acq = "ucb", kappa = 2.576, eps = 0, verbose = TRUE, seed = 42L) {
+  set.seed(as.integer(seed))
+  normalizedBounds <- lapply(bounds, function(x) c(as.numeric(x[1L]), as.numeric(x[2L])))
+  result <- rBayesianOptimization::BayesianOptimization(FUN = objective, bounds = normalizedBounds, init_grid_dt = initGridDt, init_points = as.integer(initPoints), n_iter = as.integer(nIter), acq = acq, kappa = kappa, eps = eps, verbose = isTRUE(verbose))
+  list(Best_Par = as.list(result$Best_Par), Best_Value = as.numeric(result$Best_Value), History = result$History)
+}
+
+#' Sample Internal Optimizer Candidates
+#' @noRd
+TuneBoostTree_SampleCandidates <- function(bounds, n) {
+  parameterNames <- names(bounds)
+  n <- as.integer(n)
+  out <- as.data.frame(setNames(rep(list(numeric(n)), length(parameterNames)), parameterNames))
+  if (n <= 0L) return(out)
+  for (parameterName in parameterNames) {
+    lower <- as.numeric(bounds[[parameterName]][1L])
+    upper <- as.numeric(bounds[[parameterName]][2L])
+    out[[parameterName]] <- stats::runif(n, lower, upper)
+  }
+  TuneBoostTree_NormalizeParams(out, parameterNames)
+}
+
+#' Optimize Decision Threshold From Cross-Validated Predictions
+#' @noRd
+TuneBoostTree_OptimizeThresholdCv <- function(balancedFolds, hyperparameters, nRounds, seed, nThreads, nWorkersFolds, evalMetric, engine_boost_tree, prAucBackend = "auto") {
+  predictionSummary <- TuneBoostTree_RunCvPredictions(balancedFolds, hyperparameters, nRounds, seed, nThreads, nWorkersFolds, evalMetric, engine_boost_tree)
+  TuneBoostTree_OptimizeThreshold(predictionSummary$actual, predictionSummary$predicted)
+}
+
+#' Run CV Predictions Without Early Stopping
+#' @noRd
+TuneBoostTree_RunCvPredictions <- function(balancedFolds, hyperparameters, nRounds, seed, nThreads, nWorkersFolds, evalMetric, engine_boost_tree) {
+  totalCores <- max(1L, parallel::detectCores(logical = TRUE))
+  nWorkers <- min(max(1L, as.integer(nWorkersFolds)), length(balancedFolds))
+  workerThreads <- min(as.integer(nThreads), max(1L, floor(totalCores / nWorkers)))
+  foldIds <- seq_along(balancedFolds)
+  if (nWorkers == 1L) {
+    foldResults <- lapply(foldIds, function(i) TuneBoostTree_RunOneFoldPrediction(balancedFolds[[i]], hyperparameters, nRounds, seed + i, workerThreads, evalMetric, engine_boost_tree))
+  } else if (.Platform$OS.type == "windows") {
+    cluster <- parallel::makeCluster(nWorkers)
+    on.exit(parallel::stopCluster(cluster), add = TRUE)
+    foldResults <- parallel::parLapply(cluster, foldIds, TuneBoostTree_RunFoldPredictionById, balancedFolds = balancedFolds, hyperparameters = hyperparameters, nRounds = nRounds, seed = seed, nThreads = workerThreads, evalMetric = evalMetric, engine_boost_tree = engine_boost_tree)
+  } else {
+    foldResults <- parallel::mclapply(foldIds, TuneBoostTree_RunFoldPredictionById, balancedFolds = balancedFolds, hyperparameters = hyperparameters, nRounds = nRounds, seed = seed, nThreads = workerThreads, evalMetric = evalMetric, engine_boost_tree = engine_boost_tree, mc.cores = nWorkers)
+  }
+  list(actual = unlist(lapply(foldResults, `[[`, "actual"), use.names = FALSE), predicted = unlist(lapply(foldResults, `[[`, "predicted"), use.names = FALSE))
+}
+
+#' Run One Prediction Fold by Identifier
+#' @noRd
+TuneBoostTree_RunFoldPredictionById <- function(foldId, balancedFolds, hyperparameters, nRounds, seed, nThreads, evalMetric, engine_boost_tree) {
+  TuneBoostTree_RunOneFoldPrediction(balancedFolds[[foldId]], hyperparameters, nRounds, seed + foldId, nThreads, evalMetric, engine_boost_tree)
+}
+
+#' Run One Prediction Fold
+#' @noRd
+TuneBoostTree_RunOneFoldPrediction <- function(foldData, hyperparameters, nRounds, seed, nThreads, evalMetric, engine_boost_tree) {
+  paramsValue <- TuneBoostTree_BuildParams(hyperparameters, nThreads, foldData$scalePosWeight, seed, evalMetric, engine_boost_tree)
+  if (engine_boost_tree == "xgboost") {
+    foldModel <- xgboost::xgb.train(params = paramsValue, data = foldData$dtrain, nrounds = as.integer(nRounds), verbose = 0L)
+    predictedProbability <- as.numeric(stats::predict(foldModel, newdata = foldData$dtest))
+  } else {
+    foldModel <- lightgbm::lgb.train(params = paramsValue, data = foldData$dstrain, nrounds = as.integer(nRounds), verbose = -1L)
+    predictedProbability <- as.numeric(stats::predict(foldModel, data = foldData$xTest))
+  }
+  list(actual = foldData$yTest, predicted = predictedProbability)
+}
+
+#' Optimize Binary Classification Threshold
+#' @noRd
+TuneBoostTree_OptimizeThreshold <- function(actual, predicted) {
+  actual <- as.integer(actual)
+  predicted <- as.numeric(predicted)
+  valid <- is.finite(predicted) & !is.na(actual)
+  actual <- actual[valid]
+  predicted <- predicted[valid]
+  if (length(actual) == 0L || length(unique(actual)) < 2L) return(list(threshold = 0.5, metric = "f1", score = NA_real_))
+  thresholds <- sort(unique(predicted))
+  candidates <- unique(pmin(pmax(c(0.5, thresholds), .Machine$double.eps), 1 - .Machine$double.eps))
+  scores <- vapply(candidates, function(threshold) TuneBoostTree_F1Score(actual, predicted >= threshold), numeric(1L))
+  bestIndex <- which.max(scores)
+  list(threshold = as.numeric(candidates[bestIndex]), metric = "f1", score = as.numeric(scores[bestIndex]))
+}
+
+#' Calculate F1 Score
+#' @noRd
+TuneBoostTree_F1Score <- function(actual, predictedClass) {
+  tp <- sum(actual == 1L & predictedClass)
+  fp <- sum(actual == 0L & predictedClass)
+  fn <- sum(actual == 1L & !predictedClass)
+  precision <- if ((tp + fp) == 0L) 0 else tp / (tp + fp)
+  recall <- if ((tp + fn) == 0L) 0 else tp / (tp + fn)
+  if ((precision + recall) == 0) return(0)
+  2 * precision * recall / (precision + recall)
 }
 
 #' Calculate PR AUC
@@ -877,10 +1095,9 @@ TuneBoostTree_NormalizeParams <- function(parameterData, parameterNames) {
   parameterData <- as.data.frame(parameterData, stringsAsFactors = FALSE) # Converting first makes data.frame and data.table inputs behave identically.
   parameterData <- parameterData[, parameterNames, drop = FALSE] # Column restriction keeps cache keys independent of log metadata.
   for (parameterName in parameterNames) parameterData[[parameterName]] <- as.numeric(parameterData[[parameterName]]) # Numeric coercion makes optimizer output and warm-start grids comparable.
-  if ("tree_depth" %in% parameterNames) parameterData$tree_depth <- as.integer(round(parameterData$tree_depth)) # Depth is an integer hyperparameter despite Bayesian numeric proposals.
-  if ("min_n" %in% parameterNames) parameterData$min_n <- as.integer(round(parameterData$min_n)) # Minimum node size is integral in the public boost_tree vocabulary.
-  if ("max_bin" %in% parameterNames) parameterData$max_bin <- as.integer(round(parameterData$max_bin)) # Histogram bins are integral for both engines.
-  for (parameterName in setdiff(parameterNames, c("tree_depth", "min_n", "max_bin"))) parameterData[[parameterName]] <- round(parameterData[[parameterName]], digits = 12L) # Rounding continuous values prevents floating-point noise from defeating deduplication.
+  integerParameters <- intersect(c("tree_depth", "min_n", "max_bin", "num_leaves", "min_data_in_leaf"), parameterNames)
+  for (parameterName in integerParameters) parameterData[[parameterName]] <- as.integer(round(parameterData[[parameterName]])) # Integer hyperparameters are canonicalized before cache-key generation.
+  for (parameterName in setdiff(parameterNames, integerParameters)) parameterData[[parameterName]] <- round(parameterData[[parameterName]], digits = 12L) # Rounding continuous values prevents floating-point noise from defeating deduplication.
   parameterData # Returning the same shape simplifies downstream replacement.
 }
 
@@ -900,6 +1117,17 @@ TuneBoostTree_IsScoreMatch <- function(scoreA, scoreB, tolerance = 1e-6) {
   is.finite(scoreA) && is.finite(scoreB) && abs(scoreA - scoreB) <= tolerance * max(1, abs(scoreA), abs(scoreB)) # Relative tolerance avoids false mismatches from minor numeric formatting differences.
 }
 
+
+#' Complete Parameter Grid Columns
+#' @noRd
+TuneBoostTree_CompleteParameterGrid <- function(gridData, bounds) {
+  gridData <- as.data.frame(gridData, stringsAsFactors = FALSE)
+  for (parameterName in names(bounds)) {
+    if (!parameterName %in% names(gridData)) gridData[[parameterName]] <- mean(as.numeric(bounds[[parameterName]]))
+  }
+  gridData
+}
+
 #' Create Initialization Grid
 #'
 #' @param historyData Evaluation log data.frame or data.table.
@@ -912,7 +1140,7 @@ TuneBoostTree_IsScoreMatch <- function(scoreA, scoreB, tolerance = 1e-6) {
 TuneBoostTree_CreateInitGrid <- function(historyData, bounds) {
   if (is.null(historyData) || nrow(historyData) == 0L) return(NULL) # Empty logs cannot seed future optimizer calls.
   requiredNames <- c(names(bounds), "Value") # Warm starts require parameter columns plus Value.
-  historyData <- as.data.frame(historyData, stringsAsFactors = FALSE) # Converting first avoids data.table column-selection semantics in warm-start creation.
+  historyData <- TuneBoostTree_CompleteParameterGrid(historyData, bounds) # Backfills newly added tunable parameters for older warm-start histories.
   out <- as.data.frame(historyData[, requiredNames, drop = FALSE], stringsAsFactors = FALSE) # Data.frame output matches the optimizer's init_grid_dt expectation.
   out <- out[stats::complete.cases(out), , drop = FALSE] # Incomplete rows would fail or corrupt warm-start optimization.
   if (nrow(out) == 0L) return(NULL) # Returning NULL avoids passing an empty unusable grid.
@@ -949,7 +1177,7 @@ TuneBoostTree_DeduplicateInitGrid <- function(gridData, bounds) {
   if (nrow(gridData) == 0L) return(gridData) # Empty grids remain empty without unnecessary work.
   parameterNames <- names(bounds) # Bounds define the canonical parameter set and ordering.
   requiredNames <- c(parameterNames, "Value") # The optimizer requires each candidate's score in Value.
-  gridData <- as.data.frame(gridData, stringsAsFactors = FALSE) # Converting first keeps data.table warm-start inputs on base subsetting semantics.
+  gridData <- TuneBoostTree_CompleteParameterGrid(gridData, bounds) # Backfills newly added tunable parameters for older warm-start histories.
   gridData <- as.data.frame(gridData[, requiredNames, drop = FALSE], stringsAsFactors = FALSE) # Dropping extra columns prevents optimizer API surprises.
   gridData <- gridData[stats::complete.cases(gridData), , drop = FALSE] # Complete cases are required for deterministic cache keys.
   if (nrow(gridData) == 0L) return(gridData) # Preserve data.frame type for empty-but-valid grids.
@@ -1037,7 +1265,8 @@ FitBoostTreeModel <- function(formula, dataTrain, hyperparameters, featureTypes 
   } else {
     model <- lightgbm::lgb.train(params = paramsValue, data = trainObject, nrounds = nRounds, verbose = as.integer(verbose)) # LightGBM training receives Dataset and num_iterations via nrounds.
   }
-  list(model = model, params = paramsValue, featureNames = preparedTrain$featureNames, featureTypes = preparedTrain$featureTypes, targetLevels = preparedTrain$targetLevels, targetName = preparedTrain$targetName, negativeClass = preparedTrain$negativeClass, positiveClass = preparedTrain$positiveClass, formulaInfo = preparedTrain$formulaInfo, nRounds = nRounds, engine = engine_boost_tree) # The returned object contains everything prediction/performance needs.
+  threshold <- if (is.null(hyperparameters$threshold)) 0.5 else as.numeric(hyperparameters$threshold)[1L]
+  list(model = model, params = paramsValue, featureNames = preparedTrain$featureNames, featureTypes = preparedTrain$featureTypes, targetLevels = preparedTrain$targetLevels, targetName = preparedTrain$targetName, negativeClass = preparedTrain$negativeClass, positiveClass = preparedTrain$positiveClass, formulaInfo = preparedTrain$formulaInfo, nRounds = nRounds, threshold = threshold, engine = engine_boost_tree) # The returned object contains everything prediction/performance needs.
 }
 
 #' Predict With a Boosted Tree Model
@@ -1051,8 +1280,9 @@ FitBoostTreeModel <- function(formula, dataTrain, hyperparameters, featureTypes 
 #'
 #' @return A data.frame with `predictedClass`, `probabilityFirstClass`, and `probabilitySecondClass`.
 #' @export
-PredictBoostTreeModel <- function(modelObj, newdata, threshold = 0.5, engine_boost_tree = NULL) {
+PredictBoostTreeModel <- function(modelObj, newdata, threshold = NULL, engine_boost_tree = NULL) {
   if (!is.data.frame(newdata) || nrow(newdata) == 0L) cli::cli_abort("`newdata` must be a non-empty data.frame.") # Public prediction should catch malformed scoring data early.
+  if (is.null(threshold)) threshold <- if (!is.null(modelObj$threshold)) modelObj$threshold else 0.5 # Tuned models carry an optimized threshold; legacy models fall back to 0.5.
   threshold <- as.numeric(threshold) # Numeric thresholds support integer caller input without downstream surprises.
   if (length(threshold) != 1L || is.na(threshold) || threshold <= 0 || threshold >= 1) cli::cli_abort("`threshold` must be between 0 and 1.") # Binary classification thresholds outside (0,1) are not meaningful.
   engine <- if (is.null(engine_boost_tree)) modelObj$engine else engine_boost_tree # Stored engine is the default so callers do not repeat configuration.

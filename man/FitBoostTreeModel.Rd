@@ -16,9 +16,9 @@ FitBoostTreeModel(
 )
 }
 \arguments{
-\item{formula}{A two-sided formula with one binary outcome and numeric predictors.}
-\item{dataTrain}{Training data frame.}
-\item{hyperparameters}{Named list from \code{TuneBoostTreeBayesian()} or equivalent canonical names.}
+\item{formula}{A two-sided formula with one binary factor outcome and numeric predictors.}
+\item{dataTrain}{Training data frame. The target must be a factor with exactly two levels.}
+\item{hyperparameters}{Named list from \code{TuneBoostTreeBayesian()} or equivalent canonical names. If \code{threshold} is present, it is stored for default prediction-time classification.}
 \item{featureTypes}{Optional XGBoost feature type vector.}
 \item{targetLevels}{Optional two-level target ordering.}
 \item{scalePosWeight}{Optional positive-class weight.}
@@ -27,5 +27,5 @@ FitBoostTreeModel(
 \item{verbose}{Engine verbosity.}
 \item{engine_boost_tree}{Engine name, \code{"xgboost"} or \code{"lightgbm"}.}
 }
-\description{Fits a final XGBoost or LightGBM binary boosted tree model from tuned hyperparameters.}
+\description{Fits a final XGBoost or LightGBM binary boosted tree model from tuned hyperparameters and stores class metadata plus the tuned decision threshold when supplied.}
 \value{A model object list containing the native model and metadata for prediction.}

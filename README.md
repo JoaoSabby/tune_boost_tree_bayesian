@@ -16,13 +16,13 @@ resultado <- TuneBoostTreeBayesian(
 
 Argumentos principais:
 
-- `formula`: fórmula binária, por exemplo `classe ~ x1 + x2`.
-- `data`: `data.frame`, `tibble` ou `data.table` com resposta e preditores.
+- `formula`: fórmula binária, por exemplo `classe ~ x1 + x2`; a resposta deve ser `factor` com exatamente dois níveis.
+- `data`: `data.frame`, `tibble` ou `data.table` com resposta e preditores. A classe positiva é a classe rara; em empate, é o primeiro nível de `levels(target)`.
 - `initial`: `NULL`, inteiro com número de pontos aleatórios iniciais, ou tabela (`data.frame`, `tibble`, `data.table`) com histórico de avaliações.
 - `nIter`: número de iterações de otimização após a inicialização.
 - `engine`: `"xgboost"`, `"lightgbm"`, `TuneBoostTreeXgboost()` ou `TuneBoostTreeLightgbm()`.
 
-Os nomes públicos de hiperparâmetros seguem `parsnip::boost_tree()` sempre que aplicável: `trees`, `tree_depth`, `min_n`, `loss_reduction`, `sample_size`, `mtry`, `learn_rate` e `stop_iter`.
+Os nomes públicos de hiperparâmetros seguem `parsnip::boost_tree()` sempre que aplicável: `trees`, `tree_depth`, `min_n`, `loss_reduction`, `sample_size`, `mtry`, `learn_rate` e `stop_iter`. O espaço de busca também aceita regularização e amostragem adicionais: `lambda`, `alpha`, `max_delta_step`, `colsample_bytree`, `colsample_bylevel`, `num_leaves`, `min_data_in_leaf` e `scale_pos_weight`.
 
 ## Instalação
 
@@ -94,7 +94,10 @@ resultado <- TuneBoostTreeBayesian(
     loss_reduction = c(0, 6),
     sample_size = c(0.55, 1),
     mtry = c(0.25, 1),
-    max_bin = c(64L, 384L)
+    max_bin = c(64L, 384L),
+    lambda = c(0, 10),
+    alpha = c(0, 5),
+    colsample_bytree = c(0.5, 1)
   ),
   nIter = 40L
 )
@@ -143,9 +146,9 @@ resultado <- TuneBoostTreeBayesian(
 )
 ```
 
-`scale_pos_weight` aceita:
+`scale_pos_weight` aceita e também pode ser exposto no `TuneBoostTreeSearchSpace()` quando houver validação suficiente para otimizar esse peso:
 
-- `"auto"`: calcula `qtd_majoritária / qtd_minoritária`; quando há balanceamento, o cálculo ocorre após o balanceamento de cada fold.
+- `"auto"`: calcula `qtd_negativa / qtd_positiva` conforme a classe positiva selecionada; quando há balanceamento, o cálculo ocorre após o balanceamento de cada fold.
 - `numeric(1)`: usa peso fixo, com ou sem balanceamento.
 - `NULL`: não usa peso de classe.
 
@@ -186,7 +189,7 @@ resultado <- TuneBoostTreeBayesianUltra(
 )
 ```
 
-Esse cenário usa orçamento maior, Limbo obrigatório, PR-AUC compilado quando disponível, `parallel = "auto"`, `scale_pos_weight = "auto"` e limites de busca mais amplos.
+Esse cenário usa orçamento maior, Limbo obrigatório, PR-AUC compilado quando disponível, `parallel = "auto"`, `scale_pos_weight = "auto"`, limiar de decisão otimizado por F1 out-of-fold e limites de busca mais amplos.
 
 ## Interface R ⇄ Limbo
 
