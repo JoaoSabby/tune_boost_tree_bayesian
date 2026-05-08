@@ -1,6 +1,6 @@
 # Limbo ask/tell adapter contract
 
-`TuneBoostTreeBayesian()` uses Limbo through a file-based ask/tell bridge so cross-validation stays in R while candidate generation runs in a high-performance C++ executable built with [`resibots/limbo`](https://github.com/resibots/limbo).
+`TuneBoostTreeBayesian()` is designed for a Limbo ask/tell bridge, while the current R-only implementation safely falls back to the internal optimizer when a Limbo command is unavailable.
 
 ## Invocation
 
@@ -52,14 +52,14 @@ Columns:
 
 ## Output file
 
-The executable must create `candidate.csv` with exactly one row and all seven parameter columns:
+The executable must create `candidate.csv` with exactly one row and every parameter column present in `bounds.csv`. For the default search space this includes:
 
 ```csv
-learn_rate,tree_depth,min_n,sample_size,mtry,loss_reduction,max_bin
-0.04,6,12,0.85,0.7,0.1,128
+learn_rate,tree_depth,min_n,sample_size,mtry,loss_reduction,max_bin,lambda,alpha,colsample_bytree
+0.04,6,12,0.85,0.7,0.1,128,1,0,0.8
 ```
 
-R validates all values, clamps them to configured bounds, rounds `tree_depth`, `min_n`, and `max_bin`, and only then evaluates cross-validation.
+R validates all values, clamps them to configured bounds, rounds integer parameters such as `tree_depth`, `min_n`, `max_bin`, `num_leaves`, and `min_data_in_leaf`, and only then evaluates cross-validation.
 
 ## Safety behavior
 

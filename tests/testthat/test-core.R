@@ -15,7 +15,7 @@ test_that("Validadores de configuração rejeitam inputs perigosos", {
 
 # 2. Testes de Ingestão e Preparação de Dados
 test_that("A ingestão de dados suporta múltiplos formatos tabulares de forma idêntica", {
-  df <- data.frame(y = sample(c(0, 1), 100, replace = TRUE), x1 = rnorm(100), x2 = runif(100))
+  df <- data.frame(y = factor(sample(c("neg", "pos"), 100, replace = TRUE), levels = c("neg", "pos")), x1 = rnorm(100), x2 = runif(100))
   tb <- as_tibble(df)
   dt <- as.data.table(df)
   
@@ -30,7 +30,7 @@ test_that("A ingestão de dados suporta múltiplos formatos tabulares de forma i
 
 test_that("Matrizes altamente esparsas disparam a conversão segura para dgCMatrix", {
   set.seed(42)
-  mat_sparse <- data.frame(y = sample(0:1, 50, replace = TRUE), x1 = rbinom(50, 1, 0.05), x2 = rbinom(50, 1, 0.05))
+  mat_sparse <- data.frame(y = factor(sample(c("neg", "pos"), 50, replace = TRUE), levels = c("neg", "pos")), x1 = rbinom(50, 1, 0.05), x2 = rbinom(50, 1, 0.05))
   
   # A função interna deve converter para sparseMatrix quando a densidade de zeros > 0.7
   prep <- TuneBoostTreeBayesian:::TuneBoostTree_PrepareMatrix(y ~ ., mat_sparse)
@@ -88,7 +88,7 @@ test_that("O sistema de Warm-Start deduplica históricos e processa data.frames 
 })
 
 test_that("Fallback seguro é ativado quando o Limbo não está disponível em Strict Mode = FALSE", {
-  df <- data.frame(y = sample(0:1, 50, replace=TRUE), x = rnorm(50))
+  df <- data.frame(y = factor(sample(c("neg", "pos"), 50, replace=TRUE), levels = c("neg", "pos")), x = rnorm(50))
   
   expect_warning(
     TuneBoostTreeBayesian(
@@ -99,7 +99,7 @@ test_that("Fallback seguro é ativado quando o Limbo não está disponível em S
 })
 
 test_that("Strict Limbo Mode falha previsivelmente e aborta a execução", {
-  df <- data.frame(y = sample(0:1, 50, replace=TRUE), x = rnorm(50))
+  df <- data.frame(y = factor(sample(c("neg", "pos"), 50, replace=TRUE), levels = c("neg", "pos")), x = rnorm(50))
   
   expect_error(
     TuneBoostTreeBayesianUltra(
@@ -111,7 +111,7 @@ test_that("Strict Limbo Mode falha previsivelmente e aborta a execução", {
 
 # 6. Teste de Fluxo Completo: Treino e Previsão
 test_that("O pipeline completo treina, extrai metadados e gera probabilidades corretas", {
-  df <- data.frame(y = sample(c("Não", "Sim"), 150, replace = TRUE), x1 = rnorm(150), x2 = runif(150))
+  df <- data.frame(y = factor(c(rep("Não", 100), rep("Sim", 50)), levels = c("Não", "Sim")), x1 = rnorm(150), x2 = runif(150))
   
   # Simular output do tuner
   best_params <- list(learn_rate = 0.1, tree_depth = 4, min_n = 5, sample_size = 0.8, 
@@ -125,6 +125,7 @@ test_that("O pipeline completo treina, extrai metadados e gera probabilidades co
   preds <- PredictBoostTreeModel(modelo, df[1:5, ])
   
   expect_true(all(c("predictedClass", "probabilityFirstClass", "probabilitySecondClass") %in% names(preds)))
+  expect_equal(modelo$threshold, 0.5)
   expect_true(all(preds$probabilitySecondClass >= 0 & preds$probabilitySecondClass <= 1))
 })
   
