@@ -8,11 +8,12 @@
 #' @param loss_reduction Optional fixed minimum loss reduction; `NULL` means tune it.
 #' @param sample_size Optional fixed row-sampling fraction; `NULL` means tune it.
 #' @param mtry Optional fixed predictor-sampling fraction in `(0, 1]`; `NULL` means tune it.
+#' @param max_bin Optional fixed histogram bin count; `NULL` means tune it only when present in `search_space`.
 #'
 #' @return A validated list of boost-tree defaults.
 #' @export
-TuneBoostTreeBoostParams <- function(trees = 500L, stop_iter = 20L, learn_rate = NULL, tree_depth = NULL, min_n = NULL, loss_reduction = NULL, sample_size = NULL, mtry = NULL) {
-  out <- list(trees = as.integer(trees), stop_iter = as.integer(stop_iter), learn_rate = learn_rate, tree_depth = tree_depth, min_n = min_n, loss_reduction = loss_reduction, sample_size = sample_size, mtry = mtry)
+TuneBoostTreeBoostParams <- function(trees = 500L, stop_iter = 20L, learn_rate = NULL, tree_depth = NULL, min_n = NULL, loss_reduction = NULL, sample_size = NULL, mtry = NULL, max_bin = NULL) {
+  out <- list(trees = as.integer(trees), stop_iter = as.integer(stop_iter), learn_rate = learn_rate, tree_depth = tree_depth, min_n = min_n, loss_reduction = loss_reduction, sample_size = sample_size, mtry = mtry, max_bin = max_bin)
   if (length(out$trees) != 1L || is.na(out$trees) || out$trees < 1L) cli::cli_abort("`trees` must be a positive integer.")
   if (length(out$stop_iter) != 1L || is.na(out$stop_iter) || out$stop_iter < 1L) cli::cli_abort("`stop_iter` must be a positive integer.")
   class(out) <- c("tbtb_boost_params", "list")
@@ -39,7 +40,7 @@ TuneBoostTreeBoostParams <- function(trees = 500L, stop_iter = 20L, learn_rate =
 #'
 #' @return A named list of optimizer bounds.
 #' @export
-TuneBoostTreeSearchSpace <- function(learn_rate = c(0.01, 0.15), tree_depth = c(2L, 10L), min_n = c(1, 50), loss_reduction = c(0, 5), sample_size = c(0.5, 1), mtry = c(0.3, 1), max_bin = c(32L, 256L), lambda = c(0, 10), alpha = c(0, 5), max_delta_step = NULL, colsample_bytree = c(0.5, 1), colsample_bylevel = NULL, num_leaves = NULL, min_data_in_leaf = NULL, scale_pos_weight = NULL) {
+TuneBoostTreeSearchSpace <- function(learn_rate = c(0.01, 0.2), tree_depth = c(2L, 12L), min_n = c(1, 80), loss_reduction = c(0, 8), sample_size = c(0.55, 1), mtry = NULL, max_bin = NULL, lambda = NULL, alpha = NULL, max_delta_step = NULL, colsample_bytree = NULL, colsample_bylevel = NULL, num_leaves = NULL, min_data_in_leaf = NULL, scale_pos_weight = NULL) {
   out <- list(learn_rate = learn_rate, tree_depth = tree_depth, min_n = min_n, sample_size = sample_size, mtry = mtry, loss_reduction = loss_reduction, max_bin = max_bin, lambda = lambda, alpha = alpha, max_delta_step = max_delta_step, colsample_bytree = colsample_bytree, colsample_bylevel = colsample_bylevel, num_leaves = num_leaves, min_data_in_leaf = min_data_in_leaf, scale_pos_weight = scale_pos_weight)
   out <- out[!vapply(out, is.null, logical(1L))]
   for (parameterName in names(out)) {
@@ -80,7 +81,8 @@ TuneBoostTreeCv <- function(folds = 10L, stratified = TRUE) {
 #'
 #' @return A validated optimizer configuration list.
 #' @export
-TuneBoostTreeLimbo <- function(command = Sys.getenv("TBTB_LIMBO_COMMAND", unset = NA_character_), fallback = TRUE, acquisition = "ucb", kappa = 2.576, eps = 0) {
+TuneBoostTreeLimbo <- function(command = NULL, fallback = TRUE, acquisition = "ucb", kappa = 2.576, eps = 0) {
+  command <- TuneBoostTree_ResolveLimboCommand(command)
   out <- list(type = "limbo", command = command, fallback = isTRUE(fallback), acquisition = as.character(acquisition)[1L], kappa = as.numeric(kappa)[1L], eps = as.numeric(eps)[1L])
   if (!nzchar(out$acquisition) || is.na(out$acquisition)) cli::cli_abort("`acquisition` must be a non-empty string.")
   if (!is.finite(out$kappa) || !is.finite(out$eps)) cli::cli_abort("`kappa` and `eps` must be finite numerics.")
@@ -94,6 +96,23 @@ TuneBoostTreeLimbo <- function(command = Sys.getenv("TBTB_LIMBO_COMMAND", unset 
 #' @export
 TuneBoostTreeInternalOptimizer <- function() {
   out <- list(type = "internal", command = NA_character_, fallback = TRUE, acquisition = "internal", kappa = 0, eps = 0)
+  class(out) <- c("tbtb_optimizer", "list")
+  out
+}
+
+#' Build rBayesianOptimization Configuration
+#'
+#' @param acquisition Acquisition label passed to rBayesianOptimization.
+#' @param kappa Exploration parameter for UCB-style acquisition functions.
+#' @param eps Improvement jitter for EI-style acquisition functions.
+#' @param fallback Logical; when `TRUE`, use the package-native optimizer if rBayesianOptimization is unavailable.
+#'
+#' @return A validated optimizer configuration list.
+#' @export
+TuneBoostTreeRBayesianOptimization <- function(acquisition = "ucb", kappa = 2.576, eps = 0, fallback = TRUE) {
+  out <- list(type = "rBayesianOptimization", command = NA_character_, fallback = isTRUE(fallback), acquisition = as.character(acquisition)[1L], kappa = as.numeric(kappa)[1L], eps = as.numeric(eps)[1L])
+  if (!nzchar(out$acquisition) || is.na(out$acquisition)) cli::cli_abort("`acquisition` must be a non-empty string.")
+  if (!is.finite(out$kappa) || !is.finite(out$eps)) cli::cli_abort("`kappa` and `eps` must be finite numerics.")
   class(out) <- c("tbtb_optimizer", "list")
   out
 }
@@ -199,8 +218,8 @@ TuneBoostTreeLightgbm <- function(metric = "average_precision") {
 #'
 #' @return A list of configuration blocks for high-performance tuning.
 #' @export
-TuneBoostTreeUltraConfig <- function(command = Sys.getenv("TBTB_LIMBO_COMMAND", unset = NA_character_), strict_limbo = TRUE) {
-  list(boost = TuneBoostTreeBoostParams(trees = 1000L, stop_iter = 30L), search_space = TuneBoostTreeSearchSpace(learn_rate = c(0.005, 0.2), tree_depth = c(2L, 12L), min_n = c(1, 80), loss_reduction = c(0, 8), sample_size = c(0.55, 1), mtry = c(0.25, 1), max_bin = c(64L, 512L)), cv = TuneBoostTreeCv(folds = 10L), optimizer = TuneBoostTreeLimbo(command = command, fallback = !isTRUE(strict_limbo), acquisition = "ucb", kappa = 2.576, eps = 0), imbalance = TuneBoostTreeImbalance(scale_pos_weight = "auto"), performance = TuneBoostTreePerformance(metric = "pr_auc", backend = "auto"), control = TuneBoostTreeControl(parallel = "auto", verbose = TRUE))
+TuneBoostTreeUltraConfig <- function(command = NULL, strict_limbo = TRUE) {
+  list(boost = TuneBoostTreeBoostParams(trees = 1000L, stop_iter = 30L, mtry = 1, max_bin = 256L), search_space = TuneBoostTreeSearchSpace(learn_rate = c(0.005, 0.2), tree_depth = c(2L, 12L), min_n = c(1, 80), loss_reduction = c(0, 8), sample_size = c(0.55, 1)), cv = TuneBoostTreeCv(folds = 10L), optimizer = TuneBoostTreeLimbo(command = command, fallback = !isTRUE(strict_limbo), acquisition = "ucb", kappa = 2.576, eps = 0), imbalance = TuneBoostTreeImbalance(scale_pos_weight = "auto"), performance = TuneBoostTreePerformance(metric = "pr_auc", backend = "auto"), control = TuneBoostTreeControl(parallel = "auto", verbose = TRUE))
 }
 
 #' Run Ultra-Optimized Bayesian Boosted-Tree Tuning
@@ -215,7 +234,7 @@ TuneBoostTreeUltraConfig <- function(command = Sys.getenv("TBTB_LIMBO_COMMAND", 
 #'
 #' @return The same result object returned by `TuneBoostTreeBayesian()`.
 #' @export
-TuneBoostTreeBayesianUltra <- function(formula, data, initial = 20L, nIter = 60L, engine = "xgboost", command = Sys.getenv("TBTB_LIMBO_COMMAND", unset = NA_character_), strict_limbo = TRUE) {
+TuneBoostTreeBayesianUltra <- function(formula, data, initial = 20L, nIter = 60L, engine = "lightgbm", command = NULL, strict_limbo = TRUE) {
   ultra <- TuneBoostTreeUltraConfig(command = command, strict_limbo = strict_limbo)
   TuneBoostTreeBayesian(formula = formula, data = data, initial = initial, nIter = nIter, engine = engine, boost = ultra$boost, search_space = ultra$search_space, cv = ultra$cv, optimizer = ultra$optimizer, imbalance = ultra$imbalance, performance = ultra$performance, control = ultra$control)
 }
@@ -237,7 +256,7 @@ TuneBoostTreeBayesianUltra <- function(formula, data, initial = 20L, nIter = 60L
 #'
 #' @return A list with `bestHyperparameters`, `bestScore`, `initial`, `evaluationLog`, and `config`.
 #' @export
-TuneBoostTreeBayesian <- function(formula, data, initial = 10L, nIter = 30L, engine = "xgboost", boost = TuneBoostTreeBoostParams(), search_space = TuneBoostTreeSearchSpace(), cv = TuneBoostTreeCv(), optimizer = TuneBoostTreeLimbo(), imbalance = TuneBoostTreeImbalance(), performance = TuneBoostTreePerformance(), control = TuneBoostTreeControl()) {
+TuneBoostTreeBayesian <- function(formula, data, initial = 10L, nIter = 30L, engine = "lightgbm", boost = TuneBoostTreeBoostParams(), search_space = TuneBoostTreeSearchSpace(), cv = TuneBoostTreeCv(), optimizer = TuneBoostTreeLimbo(), imbalance = TuneBoostTreeImbalance(), performance = TuneBoostTreePerformance(), control = TuneBoostTreeControl()) {
   if (!inherits(formula, "formula") || length(formula) != 3L) cli::cli_abort("`formula` must be a two-sided formula.")
   if (!is.data.frame(data) || nrow(data) == 0L) cli::cli_abort("`data` must be a non-empty data.frame, tibble, or data.table.")
   data <- as.data.frame(data) # Normalizing once gives data.frame, tibble, and data.table callers stable downstream subsetting semantics.
@@ -302,7 +321,7 @@ TuneBoostTreeBayesian <- function(formula, data, initial = 10L, nIter = 30L, eng
   }
 
   cacheEnv <- new.env(parent = emptyenv())
-  evaluationLogList <- vector("list", as.integer(initPoints) + as.integer(nIter) + 32L)
+  evaluationLogList <- vector("list", max(64L, as.integer(initPoints) + as.integer(nIter) + 32L))
   logIndex <- 0L
   objective <- TuneBoostTree_EvaluateCv
   environment(objective) <- environment()
@@ -313,6 +332,8 @@ TuneBoostTreeBayesian <- function(formula, data, initial = 10L, nIter = 30L, eng
 
   evaluationLog <- if (logIndex > 0L) data.table::rbindlist(evaluationLogList[seq_len(logIndex)], fill = TRUE) else data.table::data.table()
   bestHyperparameters <- as.list(tuningResult$Best_Par)
+  fixedBoostNames <- setdiff(names(boost)[!vapply(boost, is.null, logical(1L))], c("trees", "stop_iter"))
+  for (fixedName in setdiff(fixedBoostNames, names(bestHyperparameters))) bestHyperparameters[[fixedName]] <- boost[[fixedName]]
   bestScore <- as.numeric(tuningResult$Best_Value)
   bestIteration <- TuneBoostTree_FindBestIteration(evaluationLog, bestHyperparameters, bestScore, bounds)
   if (is.null(bestIteration)) {
@@ -352,7 +373,7 @@ TuneBoostTree_ResolveBoost <- function(boost) {
   if (!is.list(boost)) cli::cli_abort("`boost` must be created by `TuneBoostTreeBoostParams()` or be a compatible list.")
   defaults <- TuneBoostTreeBoostParams()
   defaults[names(boost)] <- boost
-  TuneBoostTreeBoostParams(trees = defaults$trees, stop_iter = defaults$stop_iter, learn_rate = defaults$learn_rate, tree_depth = defaults$tree_depth, min_n = defaults$min_n, loss_reduction = defaults$loss_reduction, sample_size = defaults$sample_size, mtry = defaults$mtry)
+  TuneBoostTreeBoostParams(trees = defaults$trees, stop_iter = defaults$stop_iter, learn_rate = defaults$learn_rate, tree_depth = defaults$tree_depth, min_n = defaults$min_n, loss_reduction = defaults$loss_reduction, sample_size = defaults$sample_size, mtry = defaults$mtry, max_bin = defaults$max_bin)
 }
 
 #' Resolve Search Space
@@ -382,12 +403,38 @@ TuneBoostTree_ResolveCv <- function(cv) {
   TuneBoostTreeCv(folds = defaults$folds, stratified = defaults$stratified)
 }
 
+#' Resolve Limbo Command Location
+#' @noRd
+TuneBoostTree_ResolveLimboCommand <- function(command = NULL) {
+  if (!is.null(command)) {
+    command <- as.character(command)
+    if (length(command) != 1L) cli::cli_abort("`command` must be `NULL` or a single executable path/command.")
+    return(if (is.na(command) || !nzchar(command)) NA_character_ else command)
+  }
+  envCommand <- Sys.getenv("TBTB_LIMBO_COMMAND", unset = NA_character_)
+  if (!is.na(envCommand) && nzchar(envCommand)) return(envCommand)
+  executableName <- if (.Platform$OS.type == "windows") "tbtb-limbo-ask.exe" else "tbtb-limbo-ask"
+  pkgCommand <- system.file("bin", executableName, package = "TuneBoostTreeBayesian")
+  if (nzchar(pkgCommand)) return(pkgCommand)
+  NA_character_
+}
+
+#' Check Executable Command
+#' @noRd
+TuneBoostTree_IsExecutableCommand <- function(command) {
+  command <- as.character(command)[1L]
+  if (is.na(command) || !nzchar(command)) return(FALSE)
+  command <- path.expand(command)
+  if (grepl(.Platform$file.sep, command, fixed = TRUE) || grepl("/", command, fixed = TRUE)) return(file.exists(command) && file.access(command, mode = 1L) == 0L)
+  nzchar(Sys.which(command))
+}
+
 #' Resolve Optimizer Configuration
 #' @noRd
 TuneBoostTree_ResolveOptimizer <- function(optimizer) {
   if (is.null(optimizer)) optimizer <- TuneBoostTreeLimbo()
-  if (is.character(optimizer)) optimizer <- if (identical(optimizer[1L], "internal")) TuneBoostTreeInternalOptimizer() else TuneBoostTreeLimbo()
-  if (!is.list(optimizer) || is.null(optimizer$type)) cli::cli_abort("`optimizer` must be created by `TuneBoostTreeLimbo()` or `TuneBoostTreeInternalOptimizer()`.")
+  if (is.character(optimizer)) optimizer <- if (identical(optimizer[1L], "internal")) TuneBoostTreeInternalOptimizer() else if (identical(optimizer[1L], "rBayesianOptimization")) TuneBoostTreeRBayesianOptimization() else TuneBoostTreeLimbo()
+  if (!is.list(optimizer) || is.null(optimizer$type)) cli::cli_abort("`optimizer` must be created by `TuneBoostTreeLimbo()`, `TuneBoostTreeRBayesianOptimization()`, or `TuneBoostTreeInternalOptimizer()`.")
   if (!(optimizer$type %in% c("limbo", "internal", "rBayesianOptimization"))) cli::cli_abort("Unsupported optimizer type: {optimizer$type}")
   optimizer
 }
@@ -431,10 +478,20 @@ TuneBoostTree_ResolveInitial <- function(initial, bounds) {
   cli::cli_abort("`initial` must be `NULL`, a non-negative integer, or a data.frame/tibble/data.table warm-start grid.")
 }
 
+#' Detect Physical CPU Budget
+#' @noRd
+TuneBoostTree_DetectCpuBudget <- function() {
+  physical <- suppressWarnings(parallel::detectCores(logical = FALSE))
+  logical <- suppressWarnings(parallel::detectCores(logical = TRUE))
+  if (is.na(physical) || physical < 1L) physical <- logical
+  if (is.na(physical) || physical < 1L) physical <- 1L
+  as.integer(physical)
+}
+
 #' Resolve Parallel Runtime
 #' @noRd
 TuneBoostTree_ResolveParallel <- function(parallel, nRows, nFolds) {
-  totalCores <- max(1L, parallel::detectCores(logical = TRUE))
+  totalCores <- TuneBoostTree_DetectCpuBudget()
   if (isFALSE(parallel) || identical(parallel, "sequential")) return(list(workers = 1L, threads_per_worker = totalCores))
   if (is.character(parallel) && identical(parallel[1L], "auto")) {
     workers <- if (nRows < 1000L) 1L else min(as.integer(nFolds), max(1L, floor(totalCores / 2L)))
@@ -734,7 +791,7 @@ TuneBoostTree_PrepareBalancedFolds <- function(formula, data, nFolds, balanceFn,
 #' @return A list with mean score, mean best iteration, and per-fold scores.
 #' @noRd
 TuneBoostTree_RunCvManual <- function(balancedFolds, hyperparameters, nRounds, earlyStoppingRounds, seed, nThreads, nWorkersFolds, evalMetric, engine_boost_tree, prAucBackend = "auto") {
-  totalCores <- max(1L, parallel::detectCores(logical = TRUE)) # Detecting cores here protects direct internal reuse with different worker counts.
+  totalCores <- TuneBoostTree_DetectCpuBudget() # Detecting physical cores here protects direct internal reuse with different worker counts.
   nWorkers <- min(max(1L, as.integer(nWorkersFolds)), length(balancedFolds)) # More workers than folds adds overhead without additional parallelism.
   workerThreads <- max(1L, floor(totalCores / nWorkers)) # Thread division enforces nthread * workers <= total cores.
   workerThreads <- min(as.integer(nThreads), workerThreads) # Caller thread limits remain authoritative.
@@ -772,8 +829,11 @@ TuneBoostTree_RunCvManual <- function(balancedFolds, hyperparameters, nRounds, e
 TuneBoostTree_EvaluateCv <- function(...) {
   hyperparameters <- list(...)
   hyperparameters <- hyperparameters[parameterNames]
-  normalizedData <- TuneBoostTree_NormalizeParams(as.data.frame(hyperparameters, stringsAsFactors = FALSE), parameterNames) # Normalization prevents cache misses from equivalent rounded integer parameters.
+  fixedBoostNames <- setdiff(names(boost)[!vapply(boost, is.null, logical(1L))], c("trees", "stop_iter"))
+  for (fixedName in setdiff(fixedBoostNames, names(hyperparameters))) hyperparameters[[fixedName]] <- boost[[fixedName]]
+  normalizedData <- TuneBoostTree_NormalizeParams(as.data.frame(hyperparameters[parameterNames], stringsAsFactors = FALSE), parameterNames) # Normalization prevents cache misses from equivalent rounded integer parameters.
   hyperparameters <- as.list(normalizedData[1L, parameterNames, drop = FALSE])
+  for (fixedName in setdiff(fixedBoostNames, names(hyperparameters))) hyperparameters[[fixedName]] <- boost[[fixedName]]
   cacheKey <- paste(unlist(normalizedData[1L, parameterNames, drop = FALSE], use.names = FALSE), collapse = "|") # The required pipe-joined key is compact and deterministic.
   if (exists(cacheKey, envir = cacheEnv, inherits = FALSE)) {
     cachedResult <- get(cacheKey, envir = cacheEnv, inherits = FALSE) # Hash lookup avoids duplicate CV runs proposed by the optimizer.
@@ -846,45 +906,201 @@ TuneBoostTree_RunOneFold <- function(foldData, hyperparameters, nRounds, earlySt
 #' @noRd
 TuneBoostTree_RunOptimizer <- function(objective, bounds, initGridDt = NULL, initPoints = 10L, nIter = 30L, acq = "ucb", kappa = 2.576, eps = 0, verbose = TRUE, seed = 42L, optimizerBackend = "internal", limboCommand = NA_character_, limboFallback = TRUE) {
   if (identical(optimizerBackend, "limbo")) {
-    if (!is.na(limboCommand) && nzchar(limboCommand) && nzchar(Sys.which(limboCommand))) {
-      cli::cli_warn("Limbo command integration is not available in this R-only build; using the internal optimizer adapter.")
-      return(TuneBoostTree_RunInternalOptimizer(objective, bounds, initGridDt, initPoints, nIter, seed))
+    if (TuneBoostTree_IsExecutableCommand(limboCommand)) {
+      limboResult <- tryCatch(TuneBoostTree_RunLimboOptimizer(objective, bounds, initGridDt, initPoints, nIter, acq, kappa, eps, seed, limboCommand), error = function(e) e)
+      if (!inherits(limboResult, "error")) return(limboResult)
+      if (!isTRUE(limboFallback)) cli::cli_abort("Limbo optimizer failed and `fallback = FALSE`: {conditionMessage(limboResult)}")
+      cli::cli_warn("Limbo optimizer failed; using the package-native Bayesian optimizer fallback. Cause: {conditionMessage(limboResult)}")
+      return(TuneBoostTree_RunInternalOptimizer(objective, bounds, initGridDt, initPoints, nIter, seed, acq, kappa, eps))
     }
-    if (!isTRUE(limboFallback)) cli::cli_abort("Limbo optimizer command is not available and `fallback = FALSE`.")
-    cli::cli_warn("Limbo optimizer command is not available; using the internal optimizer fallback.")
-    return(TuneBoostTree_RunInternalOptimizer(objective, bounds, initGridDt, initPoints, nIter, seed))
+    if (!isTRUE(limboFallback)) cli::cli_abort("Limbo optimizer command is not available or executable and `fallback = FALSE`.")
+    if (!is.na(limboCommand) && nzchar(limboCommand)) cli::cli_warn("Limbo optimizer command is not available; using the package-native Bayesian optimizer fallback.")
+    return(TuneBoostTree_RunInternalOptimizer(objective, bounds, initGridDt, initPoints, nIter, seed, acq, kappa, eps))
   }
   if (identical(optimizerBackend, "rBayesianOptimization") && requireNamespace("rBayesianOptimization", quietly = TRUE)) {
     return(TuneBoostTree_RunRBayesianOptimization(objective, bounds, initGridDt, initPoints, nIter, acq, kappa, eps, verbose, seed))
   }
-  if (identical(optimizerBackend, "rBayesianOptimization")) cli::cli_warn("Package {.pkg rBayesianOptimization} is not available; using the internal optimizer fallback.")
-  TuneBoostTree_RunInternalOptimizer(objective, bounds, initGridDt, initPoints, nIter, seed)
+  if (identical(optimizerBackend, "rBayesianOptimization")) {
+    if (!isTRUE(limboFallback)) cli::cli_abort("Package {.pkg rBayesianOptimization} is not available and `fallback = FALSE`.")
+    cli::cli_warn("Package {.pkg rBayesianOptimization} is not available; using the package-native Bayesian optimizer fallback.")
+  }
+  TuneBoostTree_RunInternalOptimizer(objective, bounds, initGridDt, initPoints, nIter, seed, acq, kappa, eps)
+}
+
+#' Run Limbo Ask/Tell Optimizer
+#' @noRd
+TuneBoostTree_RunLimboOptimizer <- function(objective, bounds, initGridDt = NULL, initPoints = 10L, nIter = 30L, acq = "ucb", kappa = 2.576, eps = 0, seed = 42L, limboCommand = NA_character_) {
+  set.seed(as.integer(seed))
+  parameterNames <- names(bounds)
+  history <- TuneBoostTree_EvaluateInitialCandidates(objective, bounds, initGridDt, initPoints)
+  best <- TuneBoostTree_BestHistoryRow(history, parameterNames)
+  for (iteration in seq_len(as.integer(nIter))) {
+    candidate <- TuneBoostTree_RequestLimboCandidate(limboCommand, bounds, history, acq, kappa, eps, seed, iteration)
+    candidate <- TuneBoostTree_ValidateCandidate(candidate, bounds)
+    value <- as.numeric(do.call(objective, as.list(candidate[1L, parameterNames, drop = FALSE]))$Score)[1L]
+    if (is.finite(value)) {
+      history <- rbind(history, data.frame(candidate[1L, parameterNames, drop = FALSE], Value = value, stringsAsFactors = FALSE))
+      if (value > best$Best_Value) best <- list(Best_Par = as.list(candidate[1L, parameterNames, drop = FALSE]), Best_Value = value)
+    }
+  }
+  if (!is.finite(best$Best_Value)) cli::cli_abort("Limbo did not produce any finite optimizer score.")
+  list(Best_Par = best$Best_Par, Best_Value = best$Best_Value, History = history)
 }
 
 #' Run Internal Safe Optimizer
 #' @noRd
-TuneBoostTree_RunInternalOptimizer <- function(objective, bounds, initGridDt = NULL, initPoints = 10L, nIter = 30L, seed = 42L) {
+TuneBoostTree_RunInternalOptimizer <- function(objective, bounds, initGridDt = NULL, initPoints = 10L, nIter = 30L, seed = 42L, acq = "ucb", kappa = 2.576, eps = 0) {
   set.seed(as.integer(seed))
   parameterNames <- names(bounds)
-  candidates <- TuneBoostTree_SampleCandidates(bounds, as.integer(initPoints) + as.integer(nIter))
-  if (!is.null(initGridDt) && nrow(initGridDt) > 0L) {
-    warmStart <- as.data.frame(initGridDt[, parameterNames, drop = FALSE], stringsAsFactors = FALSE)
-    candidates <- rbind(warmStart, candidates)
-  }
-  if (nrow(candidates) == 0L) cli::cli_abort("Optimizer received no candidate hyperparameters to evaluate.")
-  bestValue <- -Inf
-  bestPar <- NULL
-  for (rowId in seq_len(nrow(candidates))) {
-    candidate <- as.list(candidates[rowId, parameterNames, drop = FALSE])
-    result <- do.call(objective, candidate)
-    value <- as.numeric(result$Score)[1L]
-    if (is.finite(value) && value > bestValue) {
-      bestValue <- value
-      bestPar <- candidate
+  history <- TuneBoostTree_EvaluateInitialCandidates(objective, bounds, initGridDt, initPoints)
+  best <- TuneBoostTree_BestHistoryRow(history, parameterNames)
+  if (!is.finite(best$Best_Value)) cli::cli_abort("All initial optimizer candidate evaluations failed or returned non-finite scores.")
+  for (iteration in seq_len(as.integer(nIter))) {
+    candidate <- TuneBoostTree_ProposeInternalBayesianCandidate(history, bounds, acq, kappa, eps, seed + iteration)
+    value <- as.numeric(do.call(objective, as.list(candidate[1L, parameterNames, drop = FALSE]))$Score)[1L]
+    if (is.finite(value)) {
+      history <- rbind(history, data.frame(candidate[1L, parameterNames, drop = FALSE], Value = value, stringsAsFactors = FALSE))
+      if (value > best$Best_Value) best <- list(Best_Par = as.list(candidate[1L, parameterNames, drop = FALSE]), Best_Value = value)
     }
   }
-  if (is.null(bestPar)) cli::cli_abort("All optimizer candidate evaluations failed or returned non-finite scores.")
-  list(Best_Par = bestPar, Best_Value = bestValue, History = candidates)
+  list(Best_Par = best$Best_Par, Best_Value = best$Best_Value, History = history)
+}
+
+#' Evaluate Warm-Start and Random Initial Candidates
+#' @noRd
+TuneBoostTree_EvaluateInitialCandidates <- function(objective, bounds, initGridDt = NULL, initPoints = 10L) {
+  parameterNames <- names(bounds)
+  candidates <- TuneBoostTree_SampleCandidates(bounds, as.integer(initPoints))
+  if (!is.null(initGridDt) && nrow(initGridDt) > 0L) candidates <- rbind(TuneBoostTree_ValidateCandidate(initGridDt[, parameterNames, drop = FALSE], bounds), candidates)
+  if (nrow(candidates) == 0L) candidates <- TuneBoostTree_SampleCandidates(bounds, max(1L, 2L * length(parameterNames)))
+  values <- rep(NA_real_, nrow(candidates))
+  for (rowId in seq_len(nrow(candidates))) values[[rowId]] <- as.numeric(do.call(objective, as.list(candidates[rowId, parameterNames, drop = FALSE]))$Score)[1L]
+  out <- data.frame(candidates[, parameterNames, drop = FALSE], Value = values, stringsAsFactors = FALSE)
+  out[is.finite(out$Value), , drop = FALSE]
+}
+
+#' Select Best History Row
+#' @noRd
+TuneBoostTree_BestHistoryRow <- function(history, parameterNames) {
+  if (is.null(history) || nrow(history) == 0L || !any(is.finite(history$Value))) return(list(Best_Par = NULL, Best_Value = -Inf))
+  bestId <- which.max(history$Value)
+  list(Best_Par = as.list(history[bestId, parameterNames, drop = FALSE]), Best_Value = as.numeric(history$Value[[bestId]]))
+}
+
+#' Propose Candidate with a Lightweight Gaussian-Process Acquisition
+#' @noRd
+TuneBoostTree_ProposeInternalBayesianCandidate <- function(history, bounds, acq = "ucb", kappa = 2.576, eps = 0, seed = 42L) {
+  set.seed(as.integer(seed))
+  parameterNames <- names(bounds)
+  poolSize <- max(512L, min(8192L, 1024L * length(parameterNames)))
+  pool <- TuneBoostTree_SampleCandidates(bounds, poolSize)
+  pool <- TuneBoostTree_RemoveKnownCandidates(pool, history, parameterNames)
+  if (nrow(pool) == 0L) pool <- TuneBoostTree_SampleCandidates(bounds, poolSize)
+  if (nrow(history) < max(4L, length(parameterNames) + 1L)) return(pool[1L, parameterNames, drop = FALSE])
+  score <- TuneBoostTree_AcquisitionScores(history, pool, bounds, acq, kappa, eps)
+  pool[which.max(score), parameterNames, drop = FALSE]
+}
+
+#' Score Candidate Pool with GP Posterior Acquisition
+#' @noRd
+TuneBoostTree_AcquisitionScores <- function(history, pool, bounds, acq = "ucb", kappa = 2.576, eps = 0) {
+  parameterNames <- names(bounds)
+  xTrain <- TuneBoostTree_ScaleUnit(history[, parameterNames, drop = FALSE], bounds)
+  xPool <- TuneBoostTree_ScaleUnit(pool[, parameterNames, drop = FALSE], bounds)
+  y <- as.numeric(history$Value)
+  yMean <- mean(y)
+  ySd <- stats::sd(y)
+  if (!is.finite(ySd) || ySd <= 1e-12) ySd <- 1
+  yScaled <- (y - yMean) / ySd
+  lengthScale <- rep(0.35, length(parameterNames))
+  kTrain <- TuneBoostTree_RbfKernel(xTrain, xTrain, lengthScale) + diag(1e-6, nrow(xTrain))
+  cholK <- tryCatch(chol(kTrain), error = function(e) NULL)
+  if (is.null(cholK)) return(stats::runif(nrow(pool)))
+  alpha <- backsolve(cholK, forwardsolve(t(cholK), yScaled))
+  kPool <- TuneBoostTree_RbfKernel(xPool, xTrain, lengthScale)
+  mu <- as.numeric(kPool %*% alpha) * ySd + yMean
+  v <- forwardsolve(t(cholK), t(kPool))
+  sigma <- sqrt(pmax(1 - colSums(v * v), 1e-12)) * ySd
+  acq <- tolower(as.character(acq)[1L])
+  if (identical(acq, "ucb")) return(mu + as.numeric(kappa)[1L] * sigma)
+  z <- (mu - max(y) - as.numeric(eps)[1L]) / pmax(sigma, 1e-12)
+  if (identical(acq, "poi")) return(stats::pnorm(z))
+  improvement <- (mu - max(y) - as.numeric(eps)[1L]) * stats::pnorm(z) + sigma * stats::dnorm(z)
+  pmax(improvement, 0)
+}
+
+#' Squared-Exponential Kernel
+#' @noRd
+TuneBoostTree_RbfKernel <- function(xA, xB, lengthScale) {
+  xA <- as.matrix(xA)
+  xB <- as.matrix(xB)
+  scaledA <- sweep(xA, 2L, lengthScale, "/")
+  scaledB <- sweep(xB, 2L, lengthScale, "/")
+  dist2 <- outer(rowSums(scaledA^2), rowSums(scaledB^2), "+") - 2 * tcrossprod(scaledA, scaledB)
+  exp(-0.5 * pmax(dist2, 0))
+}
+
+#' Scale Parameters to Unit Hypercube
+#' @noRd
+TuneBoostTree_ScaleUnit <- function(parameterData, bounds) {
+  parameterNames <- names(bounds)
+  out <- as.data.frame(parameterData[, parameterNames, drop = FALSE], stringsAsFactors = FALSE)
+  for (parameterName in parameterNames) {
+    lower <- as.numeric(bounds[[parameterName]][1L])
+    upper <- as.numeric(bounds[[parameterName]][2L])
+    out[[parameterName]] <- (as.numeric(out[[parameterName]]) - lower) / max(upper - lower, .Machine$double.eps)
+  }
+  out
+}
+
+#' Remove Already Evaluated Candidates
+#' @noRd
+TuneBoostTree_RemoveKnownCandidates <- function(pool, history, parameterNames) {
+  if (is.null(history) || nrow(history) == 0L) return(pool)
+  poolKey <- do.call(paste, c(TuneBoostTree_NormalizeParams(pool, parameterNames), sep = "|"))
+  historyKey <- do.call(paste, c(TuneBoostTree_NormalizeParams(history, parameterNames), sep = "|"))
+  pool[!(poolKey %in% historyKey), parameterNames, drop = FALSE]
+}
+
+#' Request One Candidate from an External Limbo Ask/Tell Executable
+#' @noRd
+TuneBoostTree_RequestLimboCandidate <- function(limboCommand, bounds, history, acq = "ucb", kappa = 2.576, eps = 0, seed = 42L, iteration = 1L) {
+  workDir <- tempfile("tbtb_limbo_")
+  dir.create(workDir, recursive = TRUE, showWarnings = FALSE)
+  on.exit(unlink(workDir, recursive = TRUE, force = TRUE), add = TRUE)
+  boundsFile <- file.path(workDir, "bounds.csv")
+  observationsFile <- file.path(workDir, "observations.csv")
+  configFile <- file.path(workDir, "config.csv")
+  candidateFile <- file.path(workDir, "candidate.csv")
+  boundsData <- data.frame(parameter = names(bounds), lower = vapply(bounds, `[[`, numeric(1L), 1L), upper = vapply(bounds, `[[`, numeric(1L), 2L), type = ifelse(names(bounds) %in% c("tree_depth", "min_n", "max_bin", "num_leaves", "min_data_in_leaf"), "integer", "double"), stringsAsFactors = FALSE)
+  utils::write.csv(boundsData, boundsFile, row.names = FALSE)
+  utils::write.csv(history, observationsFile, row.names = FALSE)
+  utils::write.csv(data.frame(acq = as.character(acq)[1L], kappa = as.numeric(kappa)[1L], eps = as.numeric(eps)[1L], seed = as.integer(seed), iteration = as.integer(iteration)), configFile, row.names = FALSE)
+  status <- suppressWarnings(system2(limboCommand, args = c(boundsFile, observationsFile, configFile, candidateFile), stdout = TRUE, stderr = TRUE, timeout = as.integer(Sys.getenv("TBTB_LIMBO_TIMEOUT", "600"))))
+  exitStatus <- attr(status, "status")
+  if (!is.null(exitStatus) && !identical(as.integer(exitStatus), 0L)) cli::cli_abort("Limbo command failed with exit status {exitStatus}: {paste(status, collapse = '\n')}")
+  if (!file.exists(candidateFile)) cli::cli_abort("Limbo command did not create `candidate.csv`.")
+  candidate <- utils::read.csv(candidateFile, stringsAsFactors = FALSE, check.names = FALSE)
+  if (nrow(candidate) != 1L) cli::cli_abort("Limbo `candidate.csv` must contain exactly one candidate row.")
+  TuneBoostTree_ValidateCandidate(candidate, bounds)
+}
+
+#' Validate and Clamp Optimizer Candidate
+#' @noRd
+TuneBoostTree_ValidateCandidate <- function(candidate, bounds) {
+  parameterNames <- names(bounds)
+  candidate <- as.data.frame(candidate, stringsAsFactors = FALSE)
+  missingNames <- setdiff(parameterNames, names(candidate))
+  if (length(missingNames) > 0L) cli::cli_abort("Optimizer candidate is missing required column(s): {paste(missingNames, collapse = ', ')}.")
+  candidate <- candidate[, parameterNames, drop = FALSE]
+  for (parameterName in parameterNames) {
+    value <- as.numeric(candidate[[parameterName]])
+    if (anyNA(value) || any(!is.finite(value))) cli::cli_abort("Optimizer candidate column `{parameterName}` contains non-finite value(s).")
+    lower <- as.numeric(bounds[[parameterName]][1L])
+    upper <- as.numeric(bounds[[parameterName]][2L])
+    candidate[[parameterName]] <- pmin(pmax(value, lower), upper)
+  }
+  TuneBoostTree_NormalizeParams(candidate, parameterNames)
 }
 
 #' Run rBayesianOptimization Backend
@@ -921,7 +1137,7 @@ TuneBoostTree_OptimizeThresholdCv <- function(balancedFolds, hyperparameters, nR
 #' Run CV Predictions Without Early Stopping
 #' @noRd
 TuneBoostTree_RunCvPredictions <- function(balancedFolds, hyperparameters, nRounds, seed, nThreads, nWorkersFolds, evalMetric, engine_boost_tree) {
-  totalCores <- max(1L, parallel::detectCores(logical = TRUE))
+  totalCores <- TuneBoostTree_DetectCpuBudget()
   nWorkers <- min(max(1L, as.integer(nWorkersFolds)), length(balancedFolds))
   workerThreads <- min(as.integer(nThreads), max(1L, floor(totalCores / nWorkers)))
   foldIds <- seq_along(balancedFolds)
@@ -1249,7 +1465,7 @@ SplitDataBoostTreeFolds <- function(yData, nFolds = 10L, seed = 42L) {
 #'
 #' @return A named list containing model object, params, feature metadata, class metadata, rounds, and engine.
 #' @export
-FitBoostTreeModel <- function(formula, dataTrain, hyperparameters, featureTypes = NULL, targetLevels = NULL, scalePosWeight = NULL, nThreads = 8L, seed = 42L, verbose = 0L, engine_boost_tree = "xgboost") {
+FitBoostTreeModel <- function(formula, dataTrain, hyperparameters, featureTypes = NULL, targetLevels = NULL, scalePosWeight = NULL, nThreads = 8L, seed = 42L, verbose = 0L, engine_boost_tree = "lightgbm") {
   if (!(engine_boost_tree %in% c("xgboost", "lightgbm"))) cli::cli_abort("`engine_boost_tree` must be 'xgboost' or 'lightgbm'.") # Public dispatch must reject unknown engines.
   preparedTrain <- TuneBoostTree_PrepareMatrix(formula, dataTrain, featureTypes, targetLevels, NULL) # Matrix preparation mirrors tuning so final fit sees identical features.
   classCounts <- table(preparedTrain$yData) # Class counts provide the default imbalance weight.

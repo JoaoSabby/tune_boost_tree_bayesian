@@ -7,7 +7,7 @@ TuneBoostTreeBayesian(
   data,
   initial = 10L,
   nIter = 30L,
-  engine = "xgboost",
+  engine = "lightgbm",
   boost = TuneBoostTreeBoostParams(),
   search_space = TuneBoostTreeSearchSpace(),
   cv = TuneBoostTreeCv(),
@@ -22,17 +22,17 @@ TuneBoostTreeBayesian(
 \item{data}{A data.frame, tibble, or data.table containing training rows. The target must be a factor with exactly two levels.}
 \item{initial}{Either \code{NULL}, an integer number of random initial points, or a tabular warm-start grid containing parameter columns and \code{Value}.}
 \item{nIter}{Integer number of optimization iterations after initialization.}
-\item{engine}{Either \code{"xgboost"}, \code{"lightgbm"}, or an engine configuration from \code{TuneBoostTreeXgboost()} or \code{TuneBoostTreeLightgbm()}.}
+\item{engine}{\code{"lightgbm"} by default, \code{"xgboost"} as an alternative, or an engine configuration from \code{TuneBoostTreeXgboost()} or \code{TuneBoostTreeLightgbm()}.}
 \item{boost}{Boosting defaults from \code{TuneBoostTreeBoostParams()}.}
 \item{search_space}{Bayesian search bounds from \code{TuneBoostTreeSearchSpace()}.}
 \item{cv}{Cross-validation settings from \code{TuneBoostTreeCv()}.}
-\item{optimizer}{Optimizer settings from \code{TuneBoostTreeLimbo()} or \code{TuneBoostTreeInternalOptimizer()}.}
+\item{optimizer}{Optimizer settings from \code{TuneBoostTreeLimbo()}, \code{TuneBoostTreeRBayesianOptimization()}, or \code{TuneBoostTreeInternalOptimizer()}.}
 \item{imbalance}{Class imbalance settings from \code{TuneBoostTreeImbalance()}.}
 \item{performance}{Performance/scoring settings from \code{TuneBoostTreePerformance()}.}
 \item{control}{Runtime controls from \code{TuneBoostTreeControl()}.}
 }
 \value{A list with \code{bestHyperparameters}, \code{bestScore}, \code{bestThreshold}, \code{initial}, \code{evaluationLog}, and \code{config}. \code{bestHyperparameters$threshold} stores the F1-optimized out-of-fold decision threshold.}
-\description{Tunes XGBoost or LightGBM binary boosted tree hyperparameters using parsnip-style boost-tree parameter names, cached stratified cross-validation, warm starts, Limbo/internal optimization, and configurable PR-AUC scoring.}
+\description{Tunes LightGBM or XGBoost binary boosted tree hyperparameters using parsnip-style boost-tree parameter names, cached stratified cross-validation, warm starts, Limbo/internal optimization, and configurable PR-AUC scoring.}
 \details{
 The positive class is selected deterministically from the target factor: the rarer level is positive; if both levels have the same count, the first level in \code{levels(target)} is positive. The class ordering stored in the result is \code{c(negative, positive)}.
 
