@@ -28,7 +28,7 @@ jobs:
       - name: Install dependencies
         uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::rcmdcheck, any::remotes, any::tidyverse, any::tidymodels
+          extra-packages: any::rcmdcheck, any::remotes, any::tidyverse, any::tidymodels, any::testthat, any::xgboost, any::rBayesianOptimization, any::yardstick
           needs: check
 
       - name: Check

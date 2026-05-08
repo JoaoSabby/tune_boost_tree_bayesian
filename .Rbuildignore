@@ -1,0 +1,3 @@
+^src/limbo_build(/|$)
+^inst/bin(/|$)
+^configure\.ac$

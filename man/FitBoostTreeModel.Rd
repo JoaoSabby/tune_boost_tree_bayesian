@@ -12,7 +12,7 @@ FitBoostTreeModel(
   nThreads = 8L,
   seed = 42L,
   verbose = 0L,
-  engine_boost_tree = "xgboost"
+  engine_boost_tree = "lightgbm"
 )
 }
 \arguments{
@@ -27,5 +27,5 @@ FitBoostTreeModel(
 \item{verbose}{Engine verbosity.}
 \item{engine_boost_tree}{Engine name, \code{"xgboost"} or \code{"lightgbm"}.}
 }
-\description{Fits a final XGBoost or LightGBM binary boosted tree model from tuned hyperparameters and stores class metadata plus the tuned decision threshold when supplied.}
+\description{Fits a final LightGBM or XGBoost binary boosted tree model from tuned hyperparameters and stores class metadata plus the tuned decision threshold when supplied.}
 \value{A model object list containing the native model and metadata for prediction.}

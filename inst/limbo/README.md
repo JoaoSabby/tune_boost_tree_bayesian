@@ -1,6 +1,6 @@
 # Limbo ask/tell adapter contract
 
-`TuneBoostTreeBayesian()` is designed for a Limbo ask/tell bridge, while the current R-only implementation safely falls back to the internal optimizer when a Limbo command is unavailable.
+`TuneBoostTreeBayesian()` can call an external Limbo-compatible ask/tell executable, while still providing a package-native Bayesian optimizer fallback when the executable is unavailable and `fallback = TRUE`.
 
 ## Invocation
 
@@ -10,7 +10,9 @@ Configure the executable with:
 Sys.setenv(TBTB_LIMBO_COMMAND = "/path/to/tbtb-limbo-ask")
 ```
 
-or pass `TuneBoostTreeLimbo(command = "/path/to/tbtb-limbo-ask")`. The executable is called once for each model-based ask:
+or pass `TuneBoostTreeLimbo(command = "/path/to/tbtb-limbo-ask")`. If neither is set, the package also checks `system.file("bin", "tbtb-limbo-ask", package = "TuneBoostTreeBayesian")`.
+
+The executable is called once for each model-based ask:
 
 ```bash
 tbtb-limbo-ask bounds.csv observations.csv config.csv candidate.csv
@@ -27,18 +29,17 @@ Columns:
 - `upper`: upper bound.
 - `type`: `double` or `integer`.
 
-### `observations.csv`
-
-Columns:
+The default HPC profile optimizes only:
 
 - `learn_rate`
 - `tree_depth`
 - `min_n`
-- `sample_size`
-- `mtry`
 - `loss_reduction`
-- `max_bin`
-- `Value`
+- `sample_size`
+
+### `observations.csv`
+
+Columns are the active parameter names followed by `Value`, the cross-validated PR-AUC score to maximize.
 
 ### `config.csv`
 
@@ -52,17 +53,18 @@ Columns:
 
 ## Output file
 
-The executable must create `candidate.csv` with exactly one row and every parameter column present in `bounds.csv`. For the default search space this includes:
+The executable must create `candidate.csv` with exactly one row and every active parameter column present in `bounds.csv`. For the default search space this includes:
 
 ```csv
-learn_rate,tree_depth,min_n,sample_size,mtry,loss_reduction,max_bin,lambda,alpha,colsample_bytree
-0.04,6,12,0.85,0.7,0.1,128,1,0,0.8
+learn_rate,tree_depth,min_n,loss_reduction,sample_size
+0.04,6,12,0.1,0.85
 ```
 
-R validates all values, clamps them to configured bounds, rounds integer parameters such as `tree_depth`, `min_n`, `max_bin`, `num_leaves`, and `min_data_in_leaf`, and only then evaluates cross-validation.
+R validates all values, clamps them to configured bounds, rounds integer parameters such as `tree_depth` and `min_n`, and only then evaluates cross-validation.
 
 ## Safety behavior
 
-- If `command` is unset and `fallback = TRUE`, R uses the internal safe optimizer and emits a warning.
+- If `command` is unset or non-executable and `fallback = TRUE`, R uses the package-native Bayesian optimizer and emits a warning.
 - If `fallback = FALSE`, an unset or invalid command aborts before expensive CV work begins.
-- If the executable exits non-zero, omits `candidate.csv`, writes more than one candidate, omits a required column, or writes a non-finite value, tuning aborts with an explicit error.
+- If the executable exits non-zero, times out, omits `candidate.csv`, writes more than one candidate, omits a required column, or writes a non-finite value, tuning aborts with an explicit error.
+- `TBTB_LIMBO_TIMEOUT` controls the per-ask timeout in seconds; the default is 600 seconds.

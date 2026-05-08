@@ -107,8 +107,8 @@ Use this checklist before merging changes, publishing a release, or running long
 
 ## 12. Functional smoke tests
 
-- [ ] Minimal XGBoost tuning runs with `initial = 1L`, `nIter = 1L`, and `folds = 2L`.
-- [ ] Minimal LightGBM tuning runs when LightGBM is installed.
+- [ ] Minimal LightGBM tuning runs with `initial = 1L`, `nIter = 1L`, and `folds = 2L` when LightGBM is installed.
+- [ ] Minimal XGBoost tuning runs as the alternative engine with `initial = 1L`, `nIter = 1L`, and `folds = 2L`.
 - [ ] Warm start using returned `initial` runs.
 - [ ] Balance function with custom `...` argument runs and is called once per fold.
 - [ ] `scale_pos_weight = "auto"`, numeric, and `NULL` each run.
@@ -123,3 +123,11 @@ Use this checklist before merging changes, publishing a release, or running long
 - [ ] NEWS/release notes summarize API-breaking changes.
 - [ ] Git status is clean after documentation generation.
 - [ ] Pull request includes test output and environment limitations.
+
+## 14. Full binary-classification integration tests
+
+- [ ] LightGBM + Limbo ask/tell executable/fake runs end-to-end on `modeldata::two_class_dat` as a tibble when `lightgbm` is installed.
+- [ ] LightGBM + `rBayesianOptimization` runs end-to-end on `modeldata::two_class_dat` as a tibble when `lightgbm` is installed.
+- [ ] XGBoost + Limbo ask/tell executable/fake runs end-to-end on `modeldata::two_class_dat` as a tibble.
+- [ ] XGBoost + `rBayesianOptimization` runs end-to-end on `modeldata::two_class_dat` as a tibble.
+- [ ] Each full integration path performs `rsample::initial_split()`, tuning on `training(split)`, final fit with `FitBoostTreeModel()`, prediction on `testing(split)`, and `yardstick` metrics: PR-AUC, ROC-AUC, sensitivity, specificity, accuracy, and balanced accuracy.
