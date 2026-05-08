@@ -2,7 +2,7 @@ Package: TuneBoostTreeBayesian
 Title: Bayesian Tuning for Binary Boosted Tree Models
 Version: 0.1.0
 Authors@R: person("Joao B. G. de", "Brito", email = "JoaoSabby@users.noreply.github.com", role = c("aut", "cre"))
-Description: Provides performance-oriented Bayesian hyperparameter tuning for binary boosted tree models with LightGBM as the primary engine and XGBoost as an alternative on a dedicated Intel Xeon Platinum 8260 host, cached stratified cross-validation, warm starts, early stopping, a Limbo ask/tell optimizer bridge, a package-native Gaussian-process optimizer fallback, and optional C, Fortran, Rfast, or base R PR-AUC scoring backends.
+Description: Provides performance-oriented Bayesian hyperparameter tuning for binary boosted tree models with LightGBM as the default engine, XGBoost as a required alternative engine, rBayesianOptimization as the default optimizer, cached stratified cross-validation, warm starts, early stopping, an optional Limbo ask/tell optimizer bridge, a package-native Gaussian-process optimizer fallback, and optional C, Fortran, Rfast, or base R PR-AUC scoring backends.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
@@ -12,14 +12,15 @@ Depends:
 Imports:
     cli,
     data.table,
+    lightgbm,
     Matrix,
     parallel,
+    rBayesianOptimization,
     stats,
-    utils
+    utils,
+    xgboost
 Suggests:
     knitr,
-    lightgbm,
-    rBayesianOptimization,
     modeldata,
     Rfast,
     rmarkdown,
@@ -27,9 +28,8 @@ Suggests:
     sparsevctrs,
     testthat,
     tibble,
-    yardstick,
-    xgboost
+    yardstick
 NeedsCompilation: yes
 ByteCompile: true
-SystemRequirements: Dedicated Linux/HPC host recommended: Intel Xeon Platinum 8260-class CPU, high-memory NUMA server, LightGBM runtime plus optional XGBoost runtime. Optional external Limbo ask/tell executable configured via TBTB_LIMBO_COMMAND.
+SystemRequirements: Dedicated Linux/HPC host recommended: Intel Xeon Platinum 8260-class CPU, high-memory NUMA server, LightGBM and XGBoost runtimes. Optional external Limbo ask/tell executable configured via TBTB_LIMBO_COMMAND.
 VignetteBuilder: knitr

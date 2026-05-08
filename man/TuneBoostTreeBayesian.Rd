@@ -11,7 +11,7 @@ TuneBoostTreeBayesian(
   boost = TuneBoostTreeBoostParams(),
   search_space = TuneBoostTreeSearchSpace(),
   cv = TuneBoostTreeCv(),
-  optimizer = TuneBoostTreeLimbo(),
+  optimizer = TuneBoostTreeRBayesianOptimization(),
   imbalance = TuneBoostTreeImbalance(),
   performance = TuneBoostTreePerformance(),
   control = TuneBoostTreeControl()
@@ -26,13 +26,13 @@ TuneBoostTreeBayesian(
 \item{boost}{Boosting defaults from \code{TuneBoostTreeBoostParams()}.}
 \item{search_space}{Bayesian search bounds from \code{TuneBoostTreeSearchSpace()}.}
 \item{cv}{Cross-validation settings from \code{TuneBoostTreeCv()}.}
-\item{optimizer}{Optimizer settings from \code{TuneBoostTreeLimbo()}, \code{TuneBoostTreeRBayesianOptimization()}, or \code{TuneBoostTreeInternalOptimizer()}.}
+\item{optimizer}{Optimizer settings from \code{TuneBoostTreeRBayesianOptimization()}, \code{TuneBoostTreeLimbo()}, or \code{TuneBoostTreeInternalOptimizer()}.}
 \item{imbalance}{Class imbalance settings from \code{TuneBoostTreeImbalance()}.}
 \item{performance}{Performance/scoring settings from \code{TuneBoostTreePerformance()}.}
 \item{control}{Runtime controls from \code{TuneBoostTreeControl()}.}
 }
 \value{A list with \code{bestHyperparameters}, \code{bestScore}, \code{bestThreshold}, \code{initial}, \code{evaluationLog}, and \code{config}. \code{bestHyperparameters$threshold} stores the F1-optimized out-of-fold decision threshold.}
-\description{Tunes LightGBM or XGBoost binary boosted tree hyperparameters using parsnip-style boost-tree parameter names, cached stratified cross-validation, warm starts, Limbo/internal optimization, and configurable PR-AUC scoring.}
+\description{Tunes LightGBM or XGBoost binary boosted tree hyperparameters using parsnip-style boost-tree parameter names, cached stratified cross-validation, warm starts, rBayesianOptimization by default, optional Limbo/internal optimization, and configurable PR-AUC scoring.}
 \details{
 The positive class is selected deterministically from the target factor: the rarer level is positive; if both levels have the same count, the first level in \code{levels(target)} is positive. The class ordering stored in the result is \code{c(negative, positive)}.
 
