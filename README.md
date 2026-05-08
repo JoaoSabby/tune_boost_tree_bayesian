@@ -1,6 +1,6 @@
 # TuneBoostTreeBayesian
 
-`TuneBoostTreeBayesian` é um pacote R para ajuste Bayesiano de hiperparâmetros de árvores boosted binárias com LightGBM como engine principal e XGBoost como alternativa, preparado para execução dedicada em servidor Intel Xeon Platinum 8260 com 2 sockets NUMA, 48 cores físicos, 96 CPUs lógicas e grande capacidade de RAM. O padrão do pacote foi simplificado para otimizar exclusivamente os hiperparâmetros de `parsnip::boost_tree()` solicitados: `min_n`, `tree_depth`, `learn_rate`, `loss_reduction` e `sample_size`.
+`TuneBoostTreeBayesian` é um pacote R para ajuste Bayesiano de hiperparâmetros de árvores boosted binárias com LightGBM como engine padrão, XGBoost como engine alternativa obrigatória e `rBayesianOptimization` como otimizador padrão. O pacote foi preparado para execução dedicada em servidor Intel Xeon Platinum 8260 com 2 sockets NUMA, 48 cores físicos, 96 CPUs lógicas e grande capacidade de RAM. O padrão do pacote foi simplificado para otimizar exclusivamente os hiperparâmetros de `parsnip::boost_tree()` solicitados: `min_n`, `tree_depth`, `learn_rate`, `loss_reduction` e `sample_size`.
 
 ## API principal
 
@@ -21,30 +21,63 @@ Argumentos principais:
 - `initial`: `NULL`, inteiro com número de pontos iniciais, ou tabela (`data.frame`, `tibble`, `data.table`) com histórico de avaliações.
 - `nIter`: número de iterações Bayesianas após a inicialização.
 - `engine`: `"lightgbm"` é o padrão principal; `"xgboost"`, `TuneBoostTreeLightgbm()` e `TuneBoostTreeXgboost()` continuam disponíveis.
+- `optimizer`: por padrão usa `TuneBoostTreeRBayesianOptimization()`; Limbo externo é opcional e deve ser escolhido explicitamente com `TuneBoostTreeLimbo()`.
 
 Por padrão, o espaço de busca contém somente `learn_rate`, `tree_depth`, `min_n`, `loss_reduction` e `sample_size`. Parâmetros como `mtry` e `max_bin` continuam aceitos como fixos em `TuneBoostTreeBoostParams()` ou como opcionais em `TuneBoostTreeSearchSpace()`, mas não são mais tunados por padrão para manter a busca mais rápida, estável e alinhada ao objetivo operacional.
 
 ## Instalação
+
+LightGBM e XGBoost são dependências obrigatórias do pacote, e `rBayesianOptimization` é o otimizador padrão da função principal. Instale primeiro as dependências R obrigatórias:
 
 ```r
 install.packages(c(
   "cli",
   "data.table",
   "Matrix",
-  "xgboost", # alternativa ao LightGBM
+  "lightgbm",
+  "xgboost",
+  "rBayesianOptimization"
+), repos = "https://cran.r-project.org")
+```
+
+Dependências úteis para exemplos, métricas externas, relatórios e backends opcionais:
+
+```r
+install.packages(c(
   "Rfast",
   "modeldata",
   "rsample",
   "yardstick",
-  "rBayesianOptimization"
-))
+  "tibble",
+  "testthat",
+  "knitr",
+  "rmarkdown"
+), repos = "https://cran.r-project.org")
 ```
 
-LightGBM é o engine principal; siga a instalação recomendada do pacote `lightgbm`. XGBoost permanece disponível como alternativa instalando `xgboost`. Para Limbo externo, configure `TBTB_LIMBO_COMMAND` ou passe `TuneBoostTreeLimbo(command = "/caminho/tbtb-limbo-ask")`. Se o comando não existir e `fallback = TRUE`, o pacote usa um otimizador Bayesiano interno com processo Gaussiano leve e acquisition UCB/EI/POI.
+Depois instale o pacote localmente:
 
 ```bash
 R CMD INSTALL .
 ```
+
+### Instalação opcional do Limbo externo
+
+O uso padrão não exige Limbo: `TuneBoostTreeBayesian()` usa LightGBM com `TuneBoostTreeRBayesianOptimization()` por padrão. Se quiser usar o Limbo C++ como otimizador externo ask/tell, rode o script incluído no pacote:
+
+```bash
+./inst/scripts/install_limbo.sh
+```
+
+O script clona/compila `https://github.com/resibots/limbo`, instala dependências de build em sistemas com `apt-get` e configura `TBTB_LIMBO_ROOT`, `TBTB_LIMBO_COMMAND` e `TBTB_LIMBO_TIMEOUT` em `~/.Renviron` e `~/.profile`. Exemplo com prefixo explícito:
+
+```bash
+./inst/scripts/install_limbo.sh \
+  --prefix /opt/tbtb-limbo \
+  --adapter-command /opt/tbtb-limbo/bin/tbtb-limbo-ask
+```
+
+Importante: Limbo é a biblioteca C++; o pacote R chama um executável externo compatível com o contrato `tbtb-limbo-ask bounds.csv observations.csv config.csv candidate.csv`. Esse adaptador deve existir no caminho configurado em `TBTB_LIMBO_COMMAND` ou ser passado em `TuneBoostTreeLimbo(command = "/caminho/tbtb-limbo-ask")`. Se o Limbo externo for selecionado com `fallback = TRUE` e falhar, o pacote usa o otimizador interno seguro.
 
 ## Cenário 1: uso padrão seguro e rápido
 
@@ -61,9 +94,9 @@ resultado <- TuneBoostTreeBayesian(
 Esse cenário usa:
 
 - LightGBM com métrica `average_precision` como engine principal; XGBoost permanece disponível com `engine = "xgboost"`.
+- `rBayesianOptimization` como otimizador padrão da busca Bayesiana.
 - Busca Bayesiana sobre `learn_rate`, `tree_depth`, `min_n`, `loss_reduction` e `sample_size`.
-- Limbo externo se `TBTB_LIMBO_COMMAND` estiver configurado e executável.
-- Fallback Bayesiano interno seguro se Limbo não estiver disponível.
+- Limbo externo somente quando configurado explicitamente via `TuneBoostTreeLimbo()`.
 - `parallel = "auto"`, dividindo folds e threads para evitar oversubscription.
 - PR-AUC backend `"auto"`.
 - `scale_pos_weight = "auto"`.
@@ -105,7 +138,7 @@ resultado <- TuneBoostTreeBayesian(
 )
 ```
 
-## Cenário 4: Limbo estrito em produção/HPC
+## Cenário 4: Limbo opcional estrito em produção/HPC
 
 ```r
 resultado <- TuneBoostTreeBayesian(

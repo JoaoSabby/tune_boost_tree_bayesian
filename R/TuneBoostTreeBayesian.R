@@ -249,14 +249,14 @@ TuneBoostTreeBayesianUltra <- function(formula, data, initial = 20L, nIter = 60L
 #' @param boost Boosting defaults from `TuneBoostTreeBoostParams()`.
 #' @param search_space Bayesian search bounds from `TuneBoostTreeSearchSpace()`.
 #' @param cv Cross-validation settings from `TuneBoostTreeCv()`.
-#' @param optimizer Optimizer settings from `TuneBoostTreeLimbo()` or `TuneBoostTreeInternalOptimizer()`.
+#' @param optimizer Optimizer settings from `TuneBoostTreeRBayesianOptimization()`, `TuneBoostTreeLimbo()`, or `TuneBoostTreeInternalOptimizer()`.
 #' @param imbalance Class imbalance settings from `TuneBoostTreeImbalance()`.
 #' @param performance Performance/scoring settings from `TuneBoostTreePerformance()`.
 #' @param control Runtime controls from `TuneBoostTreeControl()`.
 #'
 #' @return A list with `bestHyperparameters`, `bestScore`, `initial`, `evaluationLog`, and `config`.
 #' @export
-TuneBoostTreeBayesian <- function(formula, data, initial = 10L, nIter = 30L, engine = "lightgbm", boost = TuneBoostTreeBoostParams(), search_space = TuneBoostTreeSearchSpace(), cv = TuneBoostTreeCv(), optimizer = TuneBoostTreeLimbo(), imbalance = TuneBoostTreeImbalance(), performance = TuneBoostTreePerformance(), control = TuneBoostTreeControl()) {
+TuneBoostTreeBayesian <- function(formula, data, initial = 10L, nIter = 30L, engine = "lightgbm", boost = TuneBoostTreeBoostParams(), search_space = TuneBoostTreeSearchSpace(), cv = TuneBoostTreeCv(), optimizer = TuneBoostTreeRBayesianOptimization(), imbalance = TuneBoostTreeImbalance(), performance = TuneBoostTreePerformance(), control = TuneBoostTreeControl()) {
   if (!inherits(formula, "formula") || length(formula) != 3L) cli::cli_abort("`formula` must be a two-sided formula.")
   if (!is.data.frame(data) || nrow(data) == 0L) cli::cli_abort("`data` must be a non-empty data.frame, tibble, or data.table.")
   data <- as.data.frame(data) # Normalizing once gives data.frame, tibble, and data.table callers stable downstream subsetting semantics.
@@ -432,7 +432,7 @@ TuneBoostTree_IsExecutableCommand <- function(command) {
 #' Resolve Optimizer Configuration
 #' @noRd
 TuneBoostTree_ResolveOptimizer <- function(optimizer) {
-  if (is.null(optimizer)) optimizer <- TuneBoostTreeLimbo()
+  if (is.null(optimizer)) optimizer <- TuneBoostTreeRBayesianOptimization()
   if (is.character(optimizer)) optimizer <- if (identical(optimizer[1L], "internal")) TuneBoostTreeInternalOptimizer() else if (identical(optimizer[1L], "rBayesianOptimization")) TuneBoostTreeRBayesianOptimization() else TuneBoostTreeLimbo()
   if (!is.list(optimizer) || is.null(optimizer$type)) cli::cli_abort("`optimizer` must be created by `TuneBoostTreeLimbo()`, `TuneBoostTreeRBayesianOptimization()`, or `TuneBoostTreeInternalOptimizer()`.")
   if (!(optimizer$type %in% c("limbo", "internal", "rBayesianOptimization"))) cli::cli_abort("Unsupported optimizer type: {optimizer$type}")
