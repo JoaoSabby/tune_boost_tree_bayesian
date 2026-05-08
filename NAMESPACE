@@ -1,0 +1,6 @@
+useDynLib(TuneBoostTreeBayesian, .registration = TRUE)
+export(FitBoostTreeModel)
+export(PerformanceBoostTreeModel)
+export(PredictBoostTreeModel)
+export(SplitDataBoostTreeFolds)
+export(TuneBoostTreeBayesian)

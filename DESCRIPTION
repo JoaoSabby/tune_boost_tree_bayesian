@@ -1,0 +1,25 @@
+Package: TuneBoostTreeBayesian
+Title: Bayesian Tuning for Binary Boosted Tree Models
+Version: 0.1.0
+Authors@R: person("Joao B. G. de", "Brito", email = "JoaoSabby@users.noreply.github.com", role = c("aut", "cre"))
+Description: Provides performance-oriented Bayesian hyperparameter tuning for binary boosted tree models with XGBoost or LightGBM, cached stratified cross-validation, warm starts, early stopping, and optional C, Fortran, Rfast, or base R PR-AUC scoring backends.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Depends:
+    R (>= 4.0.0)
+Imports:
+    cli,
+    data.table,
+    Matrix,
+    parallel,
+    rBayesianOptimization,
+    stats
+Suggests:
+    lightgbm,
+    modeldata,
+    Rfast,
+    rsample,
+    xgboost
+NeedsCompilation: yes

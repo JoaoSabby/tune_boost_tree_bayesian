@@ -22,6 +22,7 @@
 #' @param scalePosWeight Optional class-imbalance weight for unbalanced CV; computed from data when `NULL`.
 #' @param balanceFn Optional function with signature `function(data, formula)` applied once per fold.
 #' @param engine_boost_tree Boosting engine, either `"xgboost"` or `"lightgbm"`.
+#' @param prAucBackend PR-AUC implementation, one of `"auto"`, `"c"`, `"fortran"`, `"rfast"`, or `"r"`.
 #'
 #' @details
 #' This function tunes the same seven hyperparameters for XGBoost and LightGBM while translating names only at the engine boundary.
@@ -52,11 +53,13 @@ TuneBoostTreeBayesian <- function(
   verbose = TRUE,
   scalePosWeight = NULL,
   balanceFn = NULL,
-  engine_boost_tree = "xgboost"
+  engine_boost_tree = "xgboost",
+  prAucBackend = "auto"
 ) {
   if (!inherits(formula, "formula") || length(formula) != 3L) cli::cli_abort("`formula` must be a two-sided formula.") # Fail early because user-facing entry points should report malformed model specifications clearly.
   if (!is.data.frame(dataTrain) || nrow(dataTrain) == 0L) cli::cli_abort("`dataTrain` must be a non-empty data.frame.") # Protect downstream engine calls from opaque data-shape errors.
   if (!(engine_boost_tree %in% c("xgboost", "lightgbm"))) cli::cli_abort("`engine_boost_tree` must be 'xgboost' or 'lightgbm'.") # Keep engine dispatch branches exhaustive.
+  prAucBackend <- TuneBoostTree_SelectPrAucBackend(prAucBackend) # Resolving the scorer once avoids repeated namespace and native-symbol checks in every fold.
   if (!is.null(balanceFn) && !is.function(balanceFn)) cli::cli_abort("`balanceFn` must be a function when supplied.") # Balance callbacks are user supplied, so type errors should be explicit.
   if (engine_boost_tree == "xgboost" && !(evalMetric %in% c("aucpr", "auc"))) cli::cli_abort("`evalMetric` must be 'aucpr' or 'auc' for XGBoost.") # XGBoost receives the metric verbatim and unsupported names fail late.
 
@@ -125,7 +128,7 @@ TuneBoostTreeBayesian <- function(
   bestScore <- as.numeric(tuningResult$Best_Value) # Storing a scalar avoids surprises from optimizer-specific numeric classes.
   bestIteration <- TuneBoostTree_FindBestIteration(evaluationLog, bestHyperparameters, bestScore, bounds) # Reuse the logged CV result when available to avoid another expensive CV pass.
   if (is.null(bestIteration)) {
-    bestSummary <- TuneBoostTree_RunCvManual(balancedFolds, bestHyperparameters, nRoundsTuning, earlyStoppingRounds, seed, workerThreads, nWorkersFolds, evalMetric, engine_boost_tree) # A fallback CV run recovers the best iteration when the optimizer best came from warm-start data.
+    bestSummary <- TuneBoostTree_RunCvManual(balancedFolds, bestHyperparameters, nRoundsTuning, earlyStoppingRounds, seed, workerThreads, nWorkersFolds, evalMetric, engine_boost_tree, prAucBackend) # A fallback CV run recovers the best iteration when the optimizer best came from warm-start data.
     bestIteration <- as.integer(bestSummary$bestIteration) # Final training should use the effective early-stopped iteration from tuning.
   }
   if (is.null(bestIteration) || is.na(bestIteration) || bestIteration < 1L) bestIteration <- as.integer(nRoundsFinal) # A final-round fallback keeps downstream training usable if every metric is unavailable.
@@ -333,12 +336,13 @@ TuneBoostTree_PrepareBalancedFolds <- function(formula, data, nFolds, balanceFn,
 #' @param nWorkersFolds Integer number of fold workers.
 #' @param evalMetric XGBoost metric name.
 #' @param engine_boost_tree Engine name, `"xgboost"` or `"lightgbm"`.
+#' @param prAucBackend Resolved PR-AUC backend used inside fold scoring.
 #'
 #' @details Runs cached folds sequentially or with base `parallel` while capping engine threads to avoid CPU oversubscription.
 #'
 #' @return A list with mean score, mean best iteration, and per-fold scores.
 #' @noRd
-TuneBoostTree_RunCvManual <- function(balancedFolds, hyperparameters, nRounds, earlyStoppingRounds, seed, nThreads, nWorkersFolds, evalMetric, engine_boost_tree) {
+TuneBoostTree_RunCvManual <- function(balancedFolds, hyperparameters, nRounds, earlyStoppingRounds, seed, nThreads, nWorkersFolds, evalMetric, engine_boost_tree, prAucBackend = "auto") {
   totalCores <- max(1L, parallel::detectCores(logical = TRUE)) # Detecting cores here protects direct internal reuse with different worker counts.
   nWorkers <- min(max(1L, as.integer(nWorkersFolds)), length(balancedFolds)) # More workers than folds adds overhead without additional parallelism.
   workerThreads <- max(1L, floor(totalCores / nWorkers)) # Thread division enforces nthread * workers <= total cores.
@@ -346,13 +350,13 @@ TuneBoostTree_RunCvManual <- function(balancedFolds, hyperparameters, nRounds, e
   foldIds <- seq_along(balancedFolds) # Explicit ids keep results ordered after parallel execution.
   if (nWorkers == 1L) {
     foldResults <- vector("list", length(foldIds)) # Sequential preallocation avoids parallel overhead for the default path.
-    for (i in foldIds) foldResults[[i]] <- TuneBoostTree_RunOneFold(balancedFolds[[i]], hyperparameters, nRounds, earlyStoppingRounds, seed + i, workerThreads, evalMetric, engine_boost_tree) # A plain loop is fastest when only one worker is requested.
+    for (i in foldIds) foldResults[[i]] <- TuneBoostTree_RunOneFold(balancedFolds[[i]], hyperparameters, nRounds, earlyStoppingRounds, seed + i, workerThreads, evalMetric, engine_boost_tree, prAucBackend) # A plain loop is fastest when only one worker is requested.
   } else if (.Platform$OS.type == "windows") {
     cluster <- parallel::makeCluster(nWorkers) # Windows lacks fork support, so PSOCK workers are required.
     on.exit(parallel::stopCluster(cluster), add = TRUE) # Cluster cleanup prevents orphan R worker processes.
-    foldResults <- parallel::parLapply(cluster, foldIds, TuneBoostTree_RunFoldById, balancedFolds = balancedFolds, hyperparameters = hyperparameters, nRounds = nRounds, earlyStoppingRounds = earlyStoppingRounds, seed = seed, nThreads = workerThreads, evalMetric = evalMetric, engine_boost_tree = engine_boost_tree) # parLapply ships self-contained fold data to each worker.
+    foldResults <- parallel::parLapply(cluster, foldIds, TuneBoostTree_RunFoldById, balancedFolds = balancedFolds, hyperparameters = hyperparameters, nRounds = nRounds, earlyStoppingRounds = earlyStoppingRounds, seed = seed, nThreads = workerThreads, evalMetric = evalMetric, engine_boost_tree = engine_boost_tree, prAucBackend = prAucBackend) # parLapply ships self-contained fold data to each worker.
   } else {
-    foldResults <- parallel::mclapply(foldIds, TuneBoostTree_RunFoldById, balancedFolds = balancedFolds, hyperparameters = hyperparameters, nRounds = nRounds, earlyStoppingRounds = earlyStoppingRounds, seed = seed, nThreads = workerThreads, evalMetric = evalMetric, engine_boost_tree = engine_boost_tree, mc.cores = nWorkers) # Forked workers minimize serialization overhead on Unix-like systems.
+    foldResults <- parallel::mclapply(foldIds, TuneBoostTree_RunFoldById, balancedFolds = balancedFolds, hyperparameters = hyperparameters, nRounds = nRounds, earlyStoppingRounds = earlyStoppingRounds, seed = seed, nThreads = workerThreads, evalMetric = evalMetric, engine_boost_tree = engine_boost_tree, prAucBackend = prAucBackend, mc.cores = nWorkers) # Forked workers minimize serialization overhead on Unix-like systems.
   }
   foldScores <- vapply(foldResults, `[[`, numeric(1L), "score") # Numeric extraction keeps aggregation independent of backend result classes.
   foldBestIter <- vapply(foldResults, `[[`, integer(1L), "bestIteration") # Best iterations are averaged to provide a stable final round count.
@@ -381,7 +385,7 @@ TuneBoostTree_EvaluateCv <- function(eta, maxDepth, minChildWeight, subsample, c
     cachedResult <- get(cacheKey, envir = cacheEnv, inherits = FALSE) # Hash lookup avoids duplicate CV runs proposed by the optimizer.
     return(list(Score = as.numeric(cachedResult$score), Pred = 0)) # The optimizer requires a fixed return shape even for cached values.
   }
-  cvSummary <- TuneBoostTree_RunCvManual(balancedFolds, hyperparameters, nRoundsTuning, earlyStoppingRounds, seed, workerThreads, nWorkersFolds, evalMetric, engine_boost_tree) # Manual CV uses cached data objects and fold-level parallelism.
+  cvSummary <- TuneBoostTree_RunCvManual(balancedFolds, hyperparameters, nRoundsTuning, earlyStoppingRounds, seed, workerThreads, nWorkersFolds, evalMetric, engine_boost_tree, prAucBackend) # Manual CV uses cached data objects and fold-level parallelism.
   scoreValue <- as.numeric(cvSummary$score) # A scalar score is needed by BayesianOptimization.
   bestIteration <- as.integer(cvSummary$bestIteration) # Logging best iteration lets the final model avoid retuning rounds.
   logIndex <<- logIndex + 1L # Updating the call-local cursor avoids growing a data.frame inside the hot path.
@@ -401,13 +405,14 @@ TuneBoostTree_EvaluateCv <- function(eta, maxDepth, minChildWeight, subsample, c
 #' @param nThreads Integer threads for this fold worker.
 #' @param evalMetric XGBoost metric name.
 #' @param engine_boost_tree Engine name.
+#' @param prAucBackend Resolved PR-AUC backend used inside fold scoring.
 #'
 #' @details Small top-level adapter keeps parallel workers self-contained and avoids closures over fold state.
 #'
 #' @return A fold result list.
 #' @noRd
-TuneBoostTree_RunFoldById <- function(foldId, balancedFolds, hyperparameters, nRounds, earlyStoppingRounds, seed, nThreads, evalMetric, engine_boost_tree) {
-  TuneBoostTree_RunOneFold(balancedFolds[[foldId]], hyperparameters, nRounds, earlyStoppingRounds, seed + foldId, nThreads, evalMetric, engine_boost_tree) # Delegating by id keeps result order deterministic across parallel backends.
+TuneBoostTree_RunFoldById <- function(foldId, balancedFolds, hyperparameters, nRounds, earlyStoppingRounds, seed, nThreads, evalMetric, engine_boost_tree, prAucBackend = "auto") {
+  TuneBoostTree_RunOneFold(balancedFolds[[foldId]], hyperparameters, nRounds, earlyStoppingRounds, seed + foldId, nThreads, evalMetric, engine_boost_tree, prAucBackend) # Delegating by id keeps result order deterministic across parallel backends.
 }
 
 #' Run One Cached Fold
@@ -420,12 +425,13 @@ TuneBoostTree_RunFoldById <- function(foldId, balancedFolds, hyperparameters, nR
 #' @param nThreads Integer threads for this fold worker.
 #' @param evalMetric XGBoost metric name.
 #' @param engine_boost_tree Engine name.
+#' @param prAucBackend Resolved PR-AUC backend used inside fold scoring.
 #'
 #' @details Engine-specific training and prediction are isolated here for manual CV.
 #'
 #' @return A list with fold score and best iteration.
 #' @noRd
-TuneBoostTree_RunOneFold <- function(foldData, hyperparameters, nRounds, earlyStoppingRounds, seed, nThreads, evalMetric, engine_boost_tree) {
+TuneBoostTree_RunOneFold <- function(foldData, hyperparameters, nRounds, earlyStoppingRounds, seed, nThreads, evalMetric, engine_boost_tree, prAucBackend = "auto") {
   paramsValue <- TuneBoostTree_BuildParams(hyperparameters, nThreads, foldData$scalePosWeight, seed, evalMetric, engine_boost_tree) # Building params inside the worker applies the oversubscription-safe thread count.
   if (engine_boost_tree == "xgboost") {
     foldModel <- xgboost::xgb.train(params = paramsValue, data = foldData$dtrain, nrounds = as.integer(nRounds), watchlist = list(train = foldData$dtrain, eval = foldData$dtest), early_stopping_rounds = as.integer(earlyStoppingRounds), maximize = TRUE, verbose = 0L) # XGBoost early stopping reduces effective tuning rounds aggressively.
@@ -438,7 +444,7 @@ TuneBoostTree_RunOneFold <- function(foldData, hyperparameters, nRounds, earlySt
     if (is.null(bestIterFold) || is.na(bestIterFold) || bestIterFold < 1L) bestIterFold <- as.integer(nRounds) # Full rounds are used when LightGBM does not expose best_iter.
     predictedProbability <- as.numeric(stats::predict(foldModel, data = foldData$xTest)) # Matrix prediction follows LightGBM booster prediction semantics while Dataset creation remains cached for training.
   }
-  list(score = TuneBoostTree_CalculatePrAuc(foldData$yTest, predictedProbability), bestIteration = bestIterFold) # PR-AUC is computed consistently across engines for objective comparability.
+  list(score = TuneBoostTree_CalculatePrAuc(foldData$yTest, predictedProbability, backend = prAucBackend), bestIteration = bestIterFold) # PR-AUC is computed consistently across engines for objective comparability.
 }
 
 #' Calculate PR AUC
@@ -450,15 +456,92 @@ TuneBoostTree_RunOneFold <- function(foldData, hyperparameters, nRounds, earlySt
 #'
 #' @return Numeric PR-AUC value.
 #' @noRd
-TuneBoostTree_CalculatePrAuc <- function(actual, predicted) {
-  positiveCount <- sum(as.integer(actual) == 1L) # Recall denominator must count true positives in the validation target.
+TuneBoostTree_CalculatePrAuc <- function(actual, predicted, backend = "auto") {
+  backend <- TuneBoostTree_SelectPrAucBackend(backend) # Backend selection is centralized so explicit C/Fortran requests fail safely only when unavailable.
+  actual <- as.integer(actual) # Native and Rfast paths require compact integer labels.
+  predicted <- as.numeric(predicted) # Sorting and native calls operate on doubles.
+  if (length(actual) != length(predicted) || length(actual) == 0L) return(NA_real_) # Shape mismatches indicate an invalid scorer input and should never reach engines.
+  if (anyNA(actual) || anyNA(predicted) || any(!is.finite(predicted))) return(NA_real_) # Non-finite probabilities would make ranking undefined.
+  positiveCount <- sum(actual == 1L) # Recall denominator must count true positives in the validation target.
   if (positiveCount == 0L) return(NA_real_) # PR-AUC is undefined without positive examples.
-  actualOrd <- as.integer(actual)[order(as.numeric(predicted), decreasing = TRUE)] # Sorting by probability constructs the precision-recall path.
+  if (identical(backend, "c")) return(TuneBoostTree_CalculatePrAucC(actual, predicted)) # The C backend is the fastest exact scorer when the shared object is loaded.
+  if (identical(backend, "fortran")) return(TuneBoostTree_CalculatePrAucFortran(actual, predicted)) # The Fortran backend provides an alternative compiled implementation for HPC stacks.
+  if (identical(backend, "rfast")) return(TuneBoostTree_CalculatePrAucRfast(actual, predicted, positiveCount)) # Rfast accelerates ranking when native project code has not been compiled.
+  TuneBoostTree_CalculatePrAucR(actual, predicted, positiveCount) # The base-R fallback keeps the script portable on machines without compiled helpers.
+}
+
+
+#' Select PR-AUC Backend
+#'
+#' @param backend Requested backend name.
+#'
+#' @details `auto` prefers compiled C, then compiled Fortran, then Rfast, and finally base R. Explicit unavailable compiled or Rfast requests fall back to base R rather than aborting a long tuning job.
+#'
+#' @return A resolved backend name.
+#' @noRd
+TuneBoostTree_SelectPrAucBackend <- function(backend = "auto") {
+  backend <- match.arg(as.character(backend)[1L], c("auto", "c", "fortran", "rfast", "r")) # match.arg provides a clear validation error for unsupported scorer names.
+  if (identical(backend, "auto")) {
+    if (TuneBoostTree_LoadNativeBackend("c")) return("c") # The C implementation avoids R allocation in the hottest scorer path.
+    if (TuneBoostTree_LoadNativeBackend("fortran")) return("fortran") # Fortran is useful on systems where BLAS/HPC toolchains are preferred.
+    if (requireNamespace("Rfast", quietly = TRUE)) return("rfast") # Rfast is already supported and is the best no-project-compile fallback.
+    return("r") # Base R guarantees portability.
+  }
+  if (identical(backend, "c") && !TuneBoostTree_LoadNativeBackend("c")) return("r") # Explicit C stays safe on machines where the shared object has not been built.
+  if (identical(backend, "fortran") && !TuneBoostTree_LoadNativeBackend("fortran")) return("r") # Explicit Fortran also degrades safely instead of stopping optimization.
+  if (identical(backend, "rfast") && !requireNamespace("Rfast", quietly = TRUE)) return("r") # Missing optional packages should not break a tuning run.
+  backend # Available explicit backends are returned unchanged.
+}
+
+#' Load Optional Native Backend
+#'
+#' @param backend Either `"c"` or `"fortran"`.
+#'
+#' @details Checks whether the installed package DLL containing the registered C and Fortran routines is loaded.
+#'
+#' @return Logical indicating whether the symbol is available.
+#' @noRd
+TuneBoostTree_LoadNativeBackend <- function(backend) {
+  packageDll <- "TuneBoostTreeBayesian" # Installed packages load one shared object with this DLL stem.
+  packageDll %in% names(getLoadedDLLs()) # Package installation compiles and loads C and Fortran helpers together; otherwise callers safely fall back.
+}
+
+#' Calculate PR-AUC with Compiled C
+#'
+#' @noRd
+TuneBoostTree_CalculatePrAucC <- function(actual, predicted) {
+  as.numeric(.Call("tbtb_pr_auc_c", actual, predicted, PACKAGE = "TuneBoostTreeBayesian")) # .Call returns a scalar REALSXP from the registered package-native C implementation.
+}
+
+#' Calculate PR-AUC with Compiled Fortran
+#' @noRd
+TuneBoostTree_CalculatePrAucFortran <- function(actual, predicted) {
+  out <- .Fortran("tbtb_pr_auc_f", n = as.integer(length(actual)), actual = as.integer(actual), predicted = as.double(predicted), score = as.double(NA_real_), PACKAGE = "TuneBoostTreeBayesian") # .Fortran copies inputs, keeping caller vectors immutable.
+  as.numeric(out$score) # The Fortran subroutine writes the scalar score in-place.
+}
+
+#' Calculate PR-AUC with Rfast Ranking
+#' @noRd
+TuneBoostTree_CalculatePrAucRfast <- function(actual, predicted, positiveCount = sum(actual == 1L)) {
+  orderIndex <- Rfast::Order(as.numeric(predicted), stable = TRUE, descending = TRUE) # Rfast performs the ranking in compiled code while stable ties match base R ordering.
+  TuneBoostTree_CalculatePrAucOrdered(actual[orderIndex], positiveCount) # Shared accumulation keeps backend semantics aligned.
+}
+
+#' Calculate PR-AUC with Base R Ranking
+#' @noRd
+TuneBoostTree_CalculatePrAucR <- function(actual, predicted, positiveCount = sum(actual == 1L)) {
+  orderIndex <- order(predicted, decreasing = TRUE) # Base R is the fully portable scorer.
+  TuneBoostTree_CalculatePrAucOrdered(actual[orderIndex], positiveCount) # Shared accumulation avoids drift between fallback implementations.
+}
+
+#' Accumulate Ordered PR-AUC
+#' @noRd
+TuneBoostTree_CalculatePrAucOrdered <- function(actualOrd, positiveCount) {
   tp <- cumsum(actualOrd == 1L) # Cumulative true positives define recall at each threshold.
   fp <- cumsum(actualOrd == 0L) # Cumulative false positives define precision at each threshold.
   precision <- c(1, tp / pmax(tp + fp, 1)) # The leading precision anchor preserves the original integration convention.
   recall <- c(0, tp / positiveCount) # The leading zero recall anchors the PR curve at no selected positives.
-  sum((recall[-1L] - recall[-length(recall)]) * precision[-1L]) # Right-continuous trapezoid-style accumulation matches the existing scorer.
+  sum((recall[-1L] - recall[-length(recall)]) * precision[-1L]) # Right-continuous accumulation matches the existing scorer.
 }
 
 #' Normalize Parameters
