@@ -18,7 +18,8 @@ Imports:
     rBayesianOptimization,
     stats,
     utils,
-    xgboost
+    xgboost,
+    tibble
 Suggests:
     knitr,
     modeldata,
@@ -27,7 +28,6 @@ Suggests:
     rsample,
     sparsevctrs,
     testthat,
-    tibble,
     yardstick
 NeedsCompilation: yes
 ByteCompile: true

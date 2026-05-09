@@ -18,7 +18,7 @@ FitBoostTreeModel(
 \arguments{
 \item{formula}{A two-sided formula with one binary factor outcome and numeric predictors.}
 \item{dataTrain}{Training data frame. The target must be a factor with exactly two levels.}
-\item{hyperparameters}{Named list from \code{TuneBoostTreeBayesian()} or equivalent canonical names. If \code{threshold} is present, it is stored for default prediction-time classification.}
+\item{hyperparameters}{Named list from \code{TuneBoostTree()} or equivalent canonical names. If \code{threshold} is present, it is stored for default prediction-time classification.}
 \item{featureTypes}{Optional XGBoost feature type vector.}
 \item{targetLevels}{Optional two-level target ordering.}
 \item{scalePosWeight}{Optional positive-class weight.}
