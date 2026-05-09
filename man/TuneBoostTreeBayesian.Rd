@@ -45,14 +45,14 @@ TuneBoostTreeBayesian(
 \item{engine}{Texto escalar \code{"xgboost"}/\code{"lightgbm"} ou bloco de engine criado por \code{TuneBoostTreeXgboost()} ou \code{TuneBoostTreeLightgbm()}.}
 \item{boost}{Padrões de boosting criados por \code{TuneBoostTreeBoostParams()}. Valores fixos neste objeto sobrescrevem candidatos do otimizador.}
 \item{searchSpace}{Limites da busca Bayesiana criados por \code{TuneBoostTreeSearchSpace()}. O nome antigo \code{search_space} é aceito via \code{...} para compatibilidade.}
-\item{cv}{Configuração de validação cruzada criada por \code{TuneBoostTreeCv()}.}
+\item{cv}{Configuração de validação cruzada criada por \code{TuneBoostTreeCv()}; controla \code{folds} e exige \code{stratified = TRUE}.}
 \item{optimizer}{Configuração de otimizador criada por \code{TuneBoostTreeOptimizerRBayesianOptimization()}, \code{TuneBoostTreeOptimizerLimbo()} ou \code{TuneBoostTreeInternalOptimizer()}.}
 \item{imbalance}{Configuração de desbalanceamento criada por \code{TuneBoostTreeImbalance()}.}
 \item{performance}{Configuração de métrica/scoring criada por \code{TuneBoostTreePerformance()}.}
-\item{control}{Controles de execução criados por \code{TuneBoostTreeControl()}.}
+\item{control}{Controles de execução criados por \code{TuneBoostTreeControl()}; define \code{seed}, \code{parallel}, \code{verbose} e \code{fallback_trees}.}
 \item{...}{Argumentos de compatibilidade. \code{search_space} é mapeado para \code{searchSpace}; qualquer outro nome é rejeitado.}
 }
-\value{Lista nomeada com os componentes abaixo.
+\value{Objeto de classe \code{tbtb_tune_result} (também uma lista) com os componentes abaixo.
 \itemize{
 \item \code{bestHyperparameters}: lista com o melhor conjunto de hiperparâmetros encontrado. Inclui parâmetros tunados, parâmetros fixos de \code{boost}, \code{trees} escolhido por \code{early stopping}, \code{stop_iter}, \code{eval_metric}, \code{scale_pos_weight} quando aplicável e \code{threshold} otimizado. É o principal objeto a ser passado para \code{FitBoostTreeModel()}.
 \item \code{bestScore}: escalar numérico com o melhor PR-AUC médio de validação cruzada. Valores maiores indicam melhor desempenho no objetivo otimizado.
@@ -61,5 +61,5 @@ TuneBoostTreeBayesian(
 \item \code{evaluationLog}: tibble de auditoria da execução atual. Cada linha contém um candidato avaliado, o PR-AUC de validação cruzada em \code{Value} e \code{bestIteration}, que registra a rodada efetiva selecionada por \code{early stopping} para aquele candidato.
 \item \code{config}: lista com as configurações resolvidas usadas na execução: \code{engine}, \code{boost}, \code{searchSpace}, \code{cv}, \code{optimizer}, \code{imbalance}, \code{performance}, \code{control} e \code{parallel}.
 }}
-\description{Executa tuning de hiperparâmetros para boosted trees binárias com otimização Bayesiana, validação cruzada estratificada, \code{early stopping}, tratamento opcional de desbalanceamento e engines XGBoost ou LightGBM.}
+\description{Função principal recomendada do pacote. Executa tuning de hiperparâmetros para boosted trees binárias com otimização Bayesiana, validação cruzada estratificada, \code{early stopping}, tratamento opcional de desbalanceamento e engines XGBoost ou LightGBM. O nome histórico \code{TuneBoostTreeBayesian()} permanece como alias de compatibilidade.}
 \details{A classe positiva é selecionada de forma determinística a partir do fator de resposta: o nível mais raro é positivo; em empate, o primeiro nível em \code{levels(target)} é positivo. A ordenação das classes é armazenada no resultado como \code{c(negative, positive)}.}
