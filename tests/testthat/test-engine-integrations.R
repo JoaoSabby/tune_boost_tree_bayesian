@@ -2,6 +2,7 @@ library(testthat)
 library(TuneBoostTreeBayesian)
 
 TuneBoostTree_TestBinaryData <- function() {
+
   skip_if_not_installed("modeldata")
   skip_if_not_installed("rsample")
   skip_if_not_installed("tibble")
@@ -9,8 +10,12 @@ TuneBoostTree_TestBinaryData <- function() {
   split <- rsample::initial_split(tibble::as_tibble(two_class_dat), prop = 0.75, strata = "Class")
   list(train = rsample::training(split), test = rsample::testing(split))
 }
+####
+## Fim
+#
 
 TuneBoostTree_TestFakeLimbo <- function() {
+
   fakeLimbo <- tempfile("fake-limbo-")
   writeLines(c(
     "#!/bin/sh",
@@ -20,14 +25,22 @@ TuneBoostTree_TestFakeLimbo <- function() {
   Sys.chmod(fakeLimbo, mode = "0755")
   fakeLimbo
 }
+####
+## Fim
+#
 
 TuneBoostTree_TestOptimizer <- function(backend) {
-  if (identical(backend, "limbo")) return(TuneBoostTreeOptimizerLimbo(command = TuneBoostTree_TestFakeLimbo(), fallback = FALSE))
+
+  if(identical(backend, "limbo")) return(TuneBoostTreeOptimizerLimbo(command = TuneBoostTree_TestFakeLimbo(), fallback = FALSE))
   skip_if_not_installed("rBayesianOptimization")
   TuneBoostTreeOptimizerRBayesianOptimization(acquisition = "ucb", kappa = 2.576, eps = 0)
 }
+####
+## Fim
+#
 
 TuneBoostTree_TestMetrics <- function(model, testData) {
+
   skip_if_not_installed("yardstick")
   predictions <- PredictBoostTreeModel(model, testData)
   truthName <- model$targetName
@@ -45,10 +58,14 @@ TuneBoostTree_TestMetrics <- function(model, testData) {
     bal_accuracy = yardstick::bal_accuracy(metricData, truth, estimate, event_level = "second")
   )
 }
+####
+## Fim
+#
 
 TuneBoostTree_RunEngineIntegration <- function(engineName, backendName) {
-  if (identical(engineName, "xgboost")) skip_if_not_installed("xgboost")
-  if (identical(engineName, "lightgbm")) skip_if_not_installed("lightgbm")
+
+  if(identical(engineName, "xgboost")) skip_if_not_installed("xgboost")
+  if(identical(engineName, "lightgbm")) skip_if_not_installed("lightgbm")
   dataSplit <- TuneBoostTree_TestBinaryData()
   optimizer <- TuneBoostTree_TestOptimizer(backendName)
   tuned <- TuneBoostTree(
@@ -84,6 +101,9 @@ TuneBoostTree_RunEngineIntegration <- function(engineName, backendName) {
   expect_true(all(c("predictedClass", "probabilityFirstClass", "probabilitySecondClass") %in% names(predictions)))
   expect_true(all(vapply(metrics, function(x) is.data.frame(x) && is.finite(x$.estimate[[1L]]), logical(1L))))
 }
+####
+## Fim
+#
 
 test_that("pipeline completo lightgbm principal + Limbo fake calcula métricas yardstick", {
   TuneBoostTree_RunEngineIntegration("lightgbm", "limbo")

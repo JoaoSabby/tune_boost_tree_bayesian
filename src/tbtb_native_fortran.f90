@@ -1,4 +1,6 @@
+! Objetivo: fornecer backend Fortran de PR-AUC para instalações que preferem toolchains numéricas tradicionais.
 subroutine tbtb_pr_auc_f(n, actual, predicted, score)
+
   implicit none
   integer, intent(in) :: n
   integer, intent(in) :: actual(n)
@@ -15,6 +17,7 @@ subroutine tbtb_pr_auc_f(n, actual, predicted, score)
   end if
 
   positives = 0
+  ! Objetivo: ordenar índices em vez de mover os vetores de entrada, preservando dados recebidos do R.
   allocate(order_index(n))
   do i = 1, n
     if (actual(i) == 1) positives = positives + 1
@@ -48,7 +51,9 @@ subroutine tbtb_pr_auc_f(n, actual, predicted, score)
 
 contains
 
+  ! Objetivo: manter desempate determinístico pela posição original para alinhar o resultado ao backend C/R.
   logical function before(left_index, right_index)
+
     integer, intent(in) :: left_index, right_index
     if (predicted(left_index) > predicted(right_index)) then
       before = .true.
@@ -59,7 +64,9 @@ contains
     end if
   end function before
 
+  ! Objetivo: evitar dependência externa de ordenação e manter o backend autocontido.
   recursive subroutine quicksort_indices(index_vector, left, right)
+
     integer, intent(inout) :: index_vector(:)
     integer, intent(in) :: left, right
     integer :: i_left, i_right, pivot, temp
