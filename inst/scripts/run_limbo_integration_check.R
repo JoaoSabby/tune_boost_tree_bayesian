@@ -38,9 +38,15 @@ result <- TuneBoostTree(
   control = TuneBoostTreeControl(parallel = FALSE, verbose = FALSE)
 )
 
-if(!is.list(result) || !is.finite(result$bestScore)) stop("Limbo integration returned a non-finite bestScore.", call. = FALSE)
-if(!identical(result$config$optimizer$type, "limbo")) stop("Optimizer type is not limbo.", call. = FALSE)
-if(is.null(result$evaluationLog) || nrow(result$evaluationLog) < 2L) stop("Evaluation log is unexpectedly empty.", call. = FALSE)
+if(!is.list(result) || !is.finite(result$bestScore)){
+  stop("Limbo integration returned a non-finite bestScore.", call. = FALSE)
+}
+if(!identical(result$config$optimizer$type, "limbo")){
+  stop("Optimizer type is not limbo.", call. = FALSE)
+}
+if(is.null(result$evaluationLog) || nrow(result$evaluationLog) < 2L){
+  stop("Evaluation log is unexpectedly empty.", call. = FALSE)
+}
 if(!is.list(result$bestThreshold) || !all(c("threshold", "metric", "score") %in% names(result$bestThreshold))){
   stop("Threshold summary is incomplete.", call. = FALSE)
 }
