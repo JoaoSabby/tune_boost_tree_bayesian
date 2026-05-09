@@ -1,0 +1,7 @@
+# Keep Windows builds portable by default. Users may opt in to additional flags
+# through TBTB_OPT_FLAGS when compiling locally with a compatible toolchain.
+TBTB_OPT_FLAGS ?=
+
+PKG_CFLAGS += $(TBTB_OPT_FLAGS)
+PKG_FFLAGS += $(TBTB_OPT_FLAGS)
+PKG_CXXFLAGS += $(TBTB_OPT_FLAGS)

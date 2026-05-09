@@ -1,0 +1,12 @@
+# Optional package-specific optimization flags.
+#
+# The package intentionally does not force CPU-specific flags such as
+# -march=native because CRAN/CI builds and binary packages must remain portable.
+# HPC users who compile locally can opt in, for example:
+#   TBTB_OPT_FLAGS='-O3 -march=native -funroll-loops'
+# or by setting the variable from ~/.R/Makevars.
+TBTB_OPT_FLAGS ?=
+
+PKG_CFLAGS += $(TBTB_OPT_FLAGS)
+PKG_FFLAGS += $(TBTB_OPT_FLAGS)
+PKG_CXXFLAGS += $(TBTB_OPT_FLAGS)
