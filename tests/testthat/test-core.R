@@ -12,20 +12,53 @@ test_that("Validadores de configuração rejeitam inputs perigosos", {
   expect_error(TuneBoostTreeOptimizerLimbo(acquisition = ""), "arg")
   expect_error(TuneBoostTreeImbalance(scale_pos_weight = -5), "positive and finite")
   expect_error(
-    TuneBoostTree(y ~ x1 + x2, data.frame(y = factor(c("neg", "pos"), levels = c("neg", "pos")), x1 = c(0, 1), x2 = c(1, 0)), optimizer = "desconhecido"),
+    TuneBoostTree(
+      y ~ x1 + x2,
+      data.frame(
+        y = factor(c("neg", "pos"), levels = c("neg", "pos")),
+        x1 = c(0, 1),
+        x2 = c(1, 0)
+      ),
+      optimizer = "desconhecido"
+    ),
     "optimizer` as character"
   )
 })
 
 # 2. Testes de Ingestão e Preparação de Dados
 test_that("A ingestão de dados suporta múltiplos formatos tabulares de forma idêntica", {
-  df <- data.frame(y = factor(sample(c("neg", "pos"), 100, replace = TRUE), levels = c("neg", "pos")), x1 = rnorm(100), x2 = runif(100))
+  df <- data.frame(
+    y = factor(sample(c("neg", "pos"), 100, replace = TRUE), levels = c("neg", "pos")),
+    x1 = rnorm(100),
+    x2 = runif(100)
+  )
   tb <- as_tibble(df)
   dt <- as.data.table(df)
 
-  res_df <- TuneBoostTree(y ~ x1 + x2, df, initial = 2L, nIter = 0L, engine = "xgboost", control = TuneBoostTreeControl(parallel = FALSE))
-  res_tb <- TuneBoostTree(y ~ x1 + x2, tb, initial = 2L, nIter = 0L, engine = "xgboost", control = TuneBoostTreeControl(parallel = FALSE))
-  res_dt <- TuneBoostTree(y ~ x1 + x2, dt, initial = 2L, nIter = 0L, engine = "xgboost", control = TuneBoostTreeControl(parallel = FALSE))
+  res_df <- TuneBoostTree(
+    y ~ x1 + x2,
+    df,
+    initial = 2L,
+    nIter = 0L,
+    engine = "xgboost",
+    control = TuneBoostTreeControl(parallel = FALSE)
+  )
+  res_tb <- TuneBoostTree(
+    y ~ x1 + x2,
+    tb,
+    initial = 2L,
+    nIter = 0L,
+    engine = "xgboost",
+    control = TuneBoostTreeControl(parallel = FALSE)
+  )
+  res_dt <- TuneBoostTree(
+    y ~ x1 + x2,
+    dt,
+    initial = 2L,
+    nIter = 0L,
+    engine = "xgboost",
+    control = TuneBoostTreeControl(parallel = FALSE)
+  )
 
   expect_true(is.list(res_df$bestHyperparameters))
   expect_equal(res_df$bestHyperparameters, res_tb$bestHyperparameters, tolerance = 1e-4)
@@ -34,7 +67,11 @@ test_that("A ingestão de dados suporta múltiplos formatos tabulares de forma i
 
 test_that("Matrizes altamente esparsas disparam a conversão segura para dgCMatrix", {
   set.seed(42)
-  mat_sparse <- data.frame(y = factor(sample(c("neg", "pos"), 50, replace = TRUE), levels = c("neg", "pos")), x1 = rbinom(50, 1, 0.05), x2 = rbinom(50, 1, 0.05))
+  mat_sparse <- data.frame(
+    y = factor(sample(c("neg", "pos"), 50, replace = TRUE), levels = c("neg", "pos")),
+    x1 = rbinom(50, 1, 0.05),
+    x2 = rbinom(50, 1, 0.05)
+  )
 
   # A função interna deve converter para sparseMatrix quando a densidade de zeros > 0.7
   prep <- TuneBoostTreeBayesian:::TuneBoostTree_PrepareMatrix(y ~ ., mat_sparse)
@@ -64,8 +101,14 @@ test_that("Os backends de PR-AUC (C, Fortran e R base) produzem resultados equiv
   expect_equal(score_f, score_r, tolerance = 1e-7)
 
   # Testar comportamento face a inputs inválidos
-  expect_true(is.na(TuneBoostTreeBayesian:::TuneBoostTree_CalculatePrAuc(integer(0), numeric(0))))
-  expect_true(is.na(TuneBoostTreeBayesian:::TuneBoostTree_CalculatePrAuc(c(0,0,0), c(0.1,0.2,0.3)))) # Sem classe positiva
+  expect_true(is.na(
+    TuneBoostTreeBayesian:::TuneBoostTree_CalculatePrAuc(integer(0), numeric(0))
+  ))
+
+  # Sem classe positiva
+  expect_true(is.na(
+    TuneBoostTreeBayesian:::TuneBoostTree_CalculatePrAuc(c(0, 0, 0), c(0.1, 0.2, 0.3))
+  ))
 })
 
 # 5. Testes de Integração e Warm-Start (Limbo)
@@ -81,10 +124,13 @@ test_that("O sistema de Warm-Start deduplica históricos e processa data.frames 
     mtry = c(0.7, 0.7, 0.5),
     loss_reduction = c(0, 0, 1),
     max_bin = c(256, 256, 128),
-    Value = c(0.85, 0.90, 0.88) # O segundo é duplicado, mas com melhor score
+    Value = c(0.85, 0.90, 0.88)
   )
 
-  dedup <- TuneBoostTreeBayesian:::TuneBoostTree_DeduplicateInitGrid(hist_grid, bounds)
+  dedup <- TuneBoostTreeBayesian:::TuneBoostTree_DeduplicateInitGrid(
+    hist_grid,
+    bounds
+  )
 
   expect_equal(nrow(dedup), 2L)
   # Deve manter a entrada duplicada com o Value mais alto (0.90)
@@ -92,12 +138,22 @@ test_that("O sistema de Warm-Start deduplica históricos e processa data.frames 
 })
 
 test_that("Fallback seguro é ativado quando o Limbo não está disponível em Strict Mode = FALSE", {
-  df <- data.frame(y = factor(sample(c("neg", "pos"), 50, replace=TRUE), levels = c("neg", "pos")), x = rnorm(50))
+  df <- data.frame(
+    y = factor(sample(c("neg", "pos"), 50, replace = TRUE), levels = c("neg", "pos")),
+    x = rnorm(50)
+  )
 
   expect_warning(
     TuneBoostTree(
-      y ~ x, df, initial = 2L, nIter = 1L, engine = "xgboost",
-      optimizer = TuneBoostTreeOptimizerLimbo(command = "caminho_inexistente", fallback = TRUE)
+      y ~ x,
+      df,
+      initial = 2L,
+      nIter = 1L,
+      engine = "xgboost",
+      optimizer = TuneBoostTreeOptimizerLimbo(
+        command = "caminho_inexistente",
+        fallback = TRUE
+      )
     )
   )
 })
@@ -112,47 +168,89 @@ test_that("O adaptador ask/tell aceita executável externo e valida candidate.cs
     "printf 'learn_rate,tree_depth,min_n,loss_reduction,sample_size\\n0.05,6,10,0,0.8\\n' > \"$candidate\""
   ), fake_limbo)
   Sys.chmod(fake_limbo, mode = "0755")
-  objective <- function(learn_rate, tree_depth, min_n, loss_reduction, sample_size) list(Score = learn_rate + sample_size - 0.001 * min_n, Pred = 0)
+  objective <- function(learn_rate, tree_depth, min_n, loss_reduction, sample_size) {
+    list(
+      Score = learn_rate + sample_size - 0.001 * min_n,
+      Pred = 0
+    )
+  }
   bounds <- TuneBoostTreeSearchSpace()
-  result <- TuneBoostTreeBayesian:::TuneBoostTree_RunOptimizer(objective, bounds, initPoints = 1L, nIter = 1L, optimizerBackend = "limbo", limboCommand = fake_limbo, limboFallback = FALSE)
+  result <- TuneBoostTreeBayesian:::TuneBoostTree_RunOptimizer(
+    objective,
+    bounds,
+    initPoints = 1L,
+    nIter = 1L,
+    optimizerBackend = "limbo",
+    limboCommand = fake_limbo,
+    limboFallback = FALSE
+  )
   expect_true(is.finite(result$Best_Value))
   expect_true(all(names(bounds) %in% names(result$Best_Par)))
 })
 
 test_that("Strict Limbo Mode falha previsivelmente e aborta a execução", {
-  df <- data.frame(y = factor(sample(c("neg", "pos"), 50, replace=TRUE), levels = c("neg", "pos")), x = rnorm(50))
+  df <- data.frame(
+    y = factor(sample(c("neg", "pos"), 50, replace = TRUE), levels = c("neg", "pos")),
+    x = rnorm(50)
+  )
 
   expect_error(
     TuneBoostTreeBayesianUltra(
-      y ~ x, df, initial = 2L, nIter = 1L,
-      command = "caminho_inexistente", strict_limbo = TRUE
+      y ~ x,
+      df,
+      initial = 2L,
+      nIter = 1L,
+      command = "caminho_inexistente",
+      strict_limbo = TRUE
     )
   )
 })
 
 # 6. Teste de Fluxo Completo: Treino e Previsão
 test_that("O pipeline completo treina, extrai metadados e gera probabilidades corretas", {
-  df <- data.frame(y = factor(c(rep("Não", 100), rep("Sim", 50)), levels = c("Não", "Sim")), x1 = rnorm(150), x2 = runif(150))
+  df <- data.frame(
+    y = factor(c(rep("Não", 100), rep("Sim", 50)), levels = c("Não", "Sim")),
+    x1 = rnorm(150),
+    x2 = runif(150)
+  )
 
   # Simular output do tuner
-  best_params <- list(learn_rate = 0.1, tree_depth = 4, min_n = 5, sample_size = 0.8,
-                      mtry = 1, loss_reduction = 0, max_bin = 64, trees = 10, stop_iter = 5)
+  best_params <- list(
+    learn_rate = 0.1,
+    tree_depth = 4,
+    min_n = 5,
+    sample_size = 0.8,
+    mtry = 1,
+    loss_reduction = 0,
+    max_bin = 64,
+    trees = 10,
+    stop_iter = 5
+  )
 
-  modelo <- FitBoostTreeModel(y ~ x1 + x2, df, best_params, engine = "xgboost")
+  modelo <- FitBoostTreeModel(
+    y ~ x1 + x2,
+    df,
+    best_params,
+    engine = "xgboost"
+  )
 
   expect_equal(modelo$positiveClass, "Sim")
   expect_equal(modelo$negativeClass, "Não")
 
   preds <- PredictBoostTreeModel(modelo, df[1:5, ])
 
-  expect_true(all(c("predictedClass", "probabilityFirstClass", "probabilitySecondClass") %in% names(preds)))
+  expect_true(all(
+    c("predictedClass", "probabilityFirstClass", "probabilitySecondClass") %in% names(preds)
+  ))
   expect_equal(modelo$threshold, 0.5)
   expect_true(all(preds$probabilitySecondClass >= 0 & preds$probabilitySecondClass <= 1))
 })
 
 
 test_that("Configuração de desbalanceamento usa balanceFn canônico", {
-  identity_balance <- function(data, formula, ...) data
+  identity_balance <- function(data, formula, ...) {
+    data
+  }
   imbalance <- TuneBoostTreeImbalance(balanceFn = identity_balance)
   expect_identical(names(imbalance), c("balanceFn", "scale_pos_weight", "balance_args"))
 
@@ -186,7 +284,16 @@ test_that("APIs públicas usam apenas engine", {
   preds <- PredictBoostTreeModel(modelo, df[1:3, ], engine = "xgboost")
   expect_equal(nrow(preds), 3L)
   expect_error(
-    do.call(FitBoostTreeModel, c(list(y ~ x, df, best_params), stats::setNames(list("xgboost"), paste("engine", "boost", "tree", sep = "_")))),
+    do.call(
+      FitBoostTreeModel,
+      c(
+        list(y ~ x, df, best_params),
+        stats::setNames(
+          list("xgboost"),
+          paste("engine", "boost", "tree", sep = "_")
+        )
+      )
+    ),
     "unused argument"
   )
 })

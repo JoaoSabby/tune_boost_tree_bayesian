@@ -31,9 +31,20 @@ TuneBoostTree_TestFakeLimbo <- function() {
 
 TuneBoostTree_TestOptimizer <- function(backend) {
 
-  if(identical(backend, "limbo")) return(TuneBoostTreeOptimizerLimbo(command = TuneBoostTree_TestFakeLimbo(), fallback = FALSE))
+  if(identical(backend, "limbo")){
+    return(
+      TuneBoostTreeOptimizerLimbo(
+        command = TuneBoostTree_TestFakeLimbo(),
+        fallback = FALSE
+      )
+    )
+  }
   skip_if_not_installed("rBayesianOptimization")
-  TuneBoostTreeOptimizerRBayesianOptimization(acquisition = "ucb", kappa = 2.576, eps = 0)
+  TuneBoostTreeOptimizerRBayesianOptimization(
+    acquisition = "ucb",
+    kappa = 2.576,
+    eps = 0
+  )
 }
 ####
 ## Fim
@@ -64,8 +75,12 @@ TuneBoostTree_TestMetrics <- function(model, testData) {
 
 TuneBoostTree_RunEngineIntegration <- function(engineName, backendName) {
 
-  if(identical(engineName, "xgboost")) skip_if_not_installed("xgboost")
-  if(identical(engineName, "lightgbm")) skip_if_not_installed("lightgbm")
+  if(identical(engineName, "xgboost")){
+    skip_if_not_installed("xgboost")
+  }
+  if(identical(engineName, "lightgbm")){
+    skip_if_not_installed("lightgbm")
+  }
   dataSplit <- TuneBoostTree_TestBinaryData()
   optimizer <- TuneBoostTree_TestOptimizer(backendName)
   tuned <- TuneBoostTree(
