@@ -8,4 +8,4 @@
 \item{formula}{Fórmula de duas faces que identifica a variável resposta.}
 }
 \description{Chama \code{PredictBoostTreeModel()} internamente e calcula PR-AUC e uma tabela de confusão resumida.}
-\value{Lista com \code{prAuc}, \code{confusionSummary} e \code{predictions}. \code{predictions} é o tibble retornado por \code{PredictBoostTreeModel()}.}
+\value{Lista com \code{prAuc}, \code{confusionSummary} e \code{predictions}. \code{confusionSummary} é uma tibble com colunas \code{actual}, \code{predicted} e \code{count}; \code{predictions} é o tibble retornado por \code{PredictBoostTreeModel()}.}
