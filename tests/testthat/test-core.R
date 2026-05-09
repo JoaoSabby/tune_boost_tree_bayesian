@@ -150,3 +150,31 @@ test_that("O pipeline completo treina, extrai metadados e gera probabilidades co
   expect_true(all(preds$probabilitySecondClass >= 0 & preds$probabilitySecondClass <= 1))
 })
 
+
+test_that("Configuração de desbalanceamento usa balanceFn canônico e aceita legado", {
+  identity_balance <- function(data, formula, ...) data
+  imbalance <- TuneBoostTreeImbalance(balanceFn = identity_balance)
+  expect_identical(names(imbalance), c("balanceFn", "scale_pos_weight", "balance_args"))
+  expect_false("balance_fn" %in% names(imbalance))
+
+  legacy <- list(balance_fn = identity_balance, scale_pos_weight = "auto", balance_args = list())
+  expect_warning(
+    resolved <- TuneBoostTreeBayesian:::TuneBoostTree_ResolveImbalance(legacy),
+    "balance_fn"
+  )
+  expect_identical(resolved$balanceFn, identity_balance)
+})
+
+test_that("Configuração paralela avisa sobre oversubscription manual", {
+  expect_warning(
+    resolved <- TuneBoostTreeBayesian:::TuneBoostTree_FinalizeParallel(
+      workers = 5L,
+      threads = 5L,
+      nFolds = 10L,
+      totalCores = 4L
+    ),
+    "oversubscription"
+  )
+  expect_equal(resolved$workers, 5L)
+  expect_equal(resolved$threads_per_worker, 5L)
+})

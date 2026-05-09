@@ -308,7 +308,7 @@ TuneBoostTreeImbalance <- function(balanceFn = NULL, scale_pos_weight = "auto", 
     scale_pos_weight <- as.numeric(scale_pos_weight)[1L]
     if(!is.finite(scale_pos_weight) || scale_pos_weight <= 0) cli::cli_abort("Numeric `scale_pos_weight` must be positive and finite.")
   }
-  out <- list(balanceFn = balanceFn, balance_fn = balanceFn, scale_pos_weight = scale_pos_weight, balance_args = list(...))
+  out <- list(balanceFn = balanceFn, scale_pos_weight = scale_pos_weight, balance_args = list(...))
   class(out) <- c("tbtb_imbalance", "list")
   out
 }
@@ -605,9 +605,10 @@ TuneBoostTree <- function(formula, data, initial = 10L, nIter = 30L, engine = "l
   evalMetric <- if(engine_boost_tree == "xgboost") engine$eval_metric else "average_precision"
   featureTypes <- engine$feature_types
 
-  useBalancedCv <- !is.null(if(!is.null(imbalance$balanceFn)) imbalance$balanceFn else imbalance$balance_fn)
+  balanceFn <- imbalance$balanceFn
+  useBalancedCv <- !is.null(balanceFn)
   if(useBalancedCv){
-    balancedFolds <- TuneBoostTree_PrepareBalancedFolds(formula, data, nFolds, (if(!is.null(imbalance$balanceFn)) imbalance$balanceFn else imbalance$balance_fn), imbalance$balance_args, imbalance$scale_pos_weight, workerThreads, seed, engine_boost_tree, preparedTargetForCv$targetLevels)
+    balancedFolds <- TuneBoostTree_PrepareBalancedFolds(formula, data, nFolds, balanceFn, imbalance$balance_args, imbalance$scale_pos_weight, workerThreads, seed, engine_boost_tree, preparedTargetForCv$targetLevels)
     scalePosWeightValue <- NULL
   } else {
     formulaInfo <- formulaInfoForTarget
@@ -634,6 +635,11 @@ TuneBoostTree <- function(formula, data, initial = 10L, nIter = 30L, engine = "l
   }
 
   cacheEnv <- new.env(parent = emptyenv())
+  on.exit({
+    if(exists("cacheEnv", inherits = FALSE) && is.environment(cacheEnv)){
+      rm(list = ls(envir = cacheEnv, all.names = TRUE), envir = cacheEnv)
+    }
+  }, add = TRUE)
   evaluationLogList <- vector("list", max(64L, as.integer(initPoints) + as.integer(nIter) + 32L))
   logIndex <- 0L
   objective <- TuneBoostTree_EvaluateCv
@@ -820,7 +826,11 @@ TuneBoostTree_ResolveImbalance <- function(imbalance) {
   if(is.null(imbalance)) imbalance <- TuneBoostTreeImbalance()
   if(!is.list(imbalance)) cli::cli_abort("`imbalance` must be created by `TuneBoostTreeImbalance()` or be a compatible list.")
   args <- if(is.null(imbalance$balance_args)) list() else imbalance$balance_args
-  do.call(TuneBoostTreeImbalance, c(list(balanceFn = if(!is.null(imbalance$balanceFn)) imbalance$balanceFn else imbalance$balance_fn, scale_pos_weight = imbalance$scale_pos_weight), args))
+  if(is.null(imbalance$balanceFn) && !is.null(imbalance$balance_fn)){
+    cli::cli_warn("`balance_fn` is deprecated; use `balanceFn` instead.")
+    imbalance$balanceFn <- imbalance$balance_fn
+  }
+  do.call(TuneBoostTreeImbalance, c(list(balanceFn = imbalance$balanceFn, scale_pos_weight = imbalance$scale_pos_weight), args))
 }
 ####
 ## Fim
@@ -876,7 +886,8 @@ TuneBoostTree_DetectCpuBudget <- function() {
   logical <- suppressWarnings(parallel::detectCores(logical = TRUE))
   if(is.na(physical) || physical < 1L) physical <- logical
   if(is.na(physical) || physical < 1L) physical <- 1L
-  as.integer(physical)
+  reserve <- min(2L, max(0L, as.integer(physical) - 1L))
+  as.integer(max(1L, as.integer(physical) - reserve))
 }
 ####
 ## Fim
@@ -914,19 +925,36 @@ TuneBoostTree_ResolveParallel <- function(parallel, nRows, nFolds) {
   if(is.character(parallel) && identical(parallel[1L], "auto")){
     workers <- if(nRows < 1000L) 1L else min(as.integer(nFolds), max(1L, floor(totalCores / 2L)))
     threads <- max(1L, floor(totalCores / workers))
-    return(list(workers = as.integer(workers), threads_per_worker = as.integer(threads)))
+    return(TuneBoostTree_FinalizeParallel(workers, threads, nFolds, totalCores))
   }
   if(is.list(parallel)){
     strategy <- if(is.null(parallel$strategy)) "auto" else as.character(parallel$strategy)[1L]
-    if(strategy == "sequential") return(list(workers = 1L, threads_per_worker = totalCores))
-    if(strategy == "engine") return(list(workers = 1L, threads_per_worker = totalCores))
+    if(strategy == "sequential") return(TuneBoostTree_FinalizeParallel(1L, totalCores, nFolds, totalCores))
+    if(strategy == "engine") return(TuneBoostTree_FinalizeParallel(1L, totalCores, nFolds, totalCores))
     workers <- if(identical(parallel$workers, "auto")) min(as.integer(nFolds), max(1L, floor(totalCores / 2L))) else as.integer(parallel$workers)
     if(length(workers) != 1L || is.na(workers) || workers < 1L) cli::cli_abort("Parallel `workers` must be positive or 'auto'.")
     threads <- if(identical(parallel$threads_per_worker, "auto")) max(1L, floor(totalCores / workers)) else as.integer(parallel$threads_per_worker)
     if(length(threads) != 1L || is.na(threads) || threads < 1L) cli::cli_abort("Parallel `threads_per_worker` must be positive or 'auto'.")
-    return(list(workers = min(workers, as.integer(nFolds)), threads_per_worker = threads))
+    return(TuneBoostTree_FinalizeParallel(workers, threads, nFolds, totalCores))
   }
   cli::cli_abort("`parallel` must be 'auto', FALSE, 'sequential', or `TuneBoostTreeParallel()`.")
+}
+####
+## Fim
+#
+
+#' Finalizar configuração paralela e avisar sobre oversubscription manual
+#' @noRd
+TuneBoostTree_FinalizeParallel <- function(workers, threads, nFolds, totalCores) {
+
+  workers <- min(as.integer(workers), as.integer(nFolds))
+  threads <- as.integer(threads)
+  requestedThreads <- as.numeric(workers) * as.numeric(threads)
+  oversubscriptionLimit <- as.numeric(totalCores) * 2
+  if(is.finite(requestedThreads) && requestedThreads > oversubscriptionLimit){
+    cli::cli_warn("workers ({workers}) * threads_per_worker ({threads}) = {requestedThreads} exceeds 2x the detected CPU budget ({totalCores}); consider reducing them to avoid oversubscription.")
+  }
+  list(workers = as.integer(workers), threads_per_worker = threads)
 }
 ####
 ## Fim
