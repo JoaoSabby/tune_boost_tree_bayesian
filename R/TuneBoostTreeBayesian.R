@@ -953,10 +953,14 @@ TuneBoostTree <- function(
   prAucBackend <- TuneBoostTree_SelectPrAucBackend(performance$backend)
   engineConfig <- engine
   engine <- engineConfig$name
+  if(identical(engine, "lightgbm") && nWorkersFolds > 1L){
+    workerThreads <- max(1L, as.integer(workerThreads) * as.integer(nWorkersFolds))
+    nWorkersFolds <- 1L
+  }
   if(engine == "xgboost"){
     evalMetric <- engineConfig$eval_metric
   } else {
-    evalMetric <- "average_precision"
+    evalMetric <- engineConfig$metric
   }
   featureTypes <- engineConfig$feature_types
 
@@ -2088,10 +2092,14 @@ TuneBoostTree_BuildParams <- function(
     }
     return(params)
   }
+  lightgbmMetric <- as.character(evalMetric)[1L]
+  if(identical(lightgbmMetric, "aucpr")){
+    lightgbmMetric <- "average_precision"
+  }
   params <- list(
     objective = "binary",
     boosting = "gbdt",
-    metric = "average_precision",
+    metric = lightgbmMetric,
     max_bin = maxBinValue,
     max_depth = treeDepthValue,
     learning_rate = learnRateValue,
@@ -2245,18 +2253,23 @@ TuneBoostTree_RunCvManual <- function(
 
   nWorkers <- min(max(1L, as.integer(nWorkersFolds)), length(balancedFolds))
   workerThreads <- max(1L, as.integer(nThreads))
+  if(identical(engine, "lightgbm") && nWorkers > 1L){
+    nWorkers <- 1L
+    workerThreads <- max(1L, as.integer(nThreads) * max(1L, as.integer(nWorkersFolds)))
+  }
   foldIds <- seq_along(balancedFolds)
   TuneBoostTree_SetPassiveOpenMp()
   if(nWorkers == 1L){
     foldResults <- vector("list", length(foldIds))
 
     for(i in foldIds){
-      foldResults[[i]] <- TuneBoostTree_RunOneFold(
-        foldData = balancedFolds[[i]],
+      foldResults[[i]] <- TuneBoostTree_RunFoldById(
+        foldId = i,
+        balancedFolds = balancedFolds,
         hyperparameters = hyperparameters,
         nRounds = nRounds,
         earlyStoppingRounds = earlyStoppingRounds,
-        seed = seed + i,
+        seed = seed,
         nThreads = workerThreads,
         evalMetric = evalMetric,
         engine = engine,
@@ -2302,7 +2315,22 @@ TuneBoostTree_RunCvManual <- function(
 
   if(any(invalidFold)){
     failedFolds <- paste(foldIds[invalidFold], collapse = ", ")
-    cli::cli_abort("Validation fold(s) failed before returning a score: {failedFolds}.")
+    foldMessages <- vapply(
+      foldResults[invalidFold],
+      function(foldResult) {
+        if(is.list(foldResult) && !is.null(foldResult$errorMessage)){
+          return(as.character(foldResult$errorMessage)[1L])
+        }
+        if(inherits(foldResult, "try-error") || inherits(foldResult, "error")){
+          return(as.character(foldResult)[1L])
+        }
+        "Unknown fold failure."
+      },
+      character(1L)
+    )
+    foldMessages <- unique(foldMessages[nzchar(foldMessages)])
+    detail <- paste(utils::head(foldMessages, 3L), collapse = " | ")
+    cli::cli_abort("Validation fold(s) failed before returning a score: {failedFolds}. First error(s): {detail}")
   }
 
   foldScores <- vapply(foldResults, `[[`, numeric(1L), "score")
@@ -2338,7 +2366,16 @@ TuneBoostTree_IsInvalidFoldResult <- function(foldResult) {
   }
 
   missingNames <- setdiff(c("score", "bestIteration"), names(foldResult))
-  length(missingNames) > 0L
+  if(length(missingNames) > 0L){
+    return(TRUE)
+  }
+
+  if(!is.null(foldResult$errorMessage)){
+    return(TRUE)
+  }
+
+  !is.finite(as.numeric(foldResult$score)[1L]) ||
+    !is.finite(as.integer(foldResult$bestIteration)[1L])
 }
 ####
 ## Fim
@@ -2461,16 +2498,25 @@ TuneBoostTree_RunFoldById <- function(
   prAucBackend = "auto"
 ) {
 
-  TuneBoostTree_RunOneFold(
-    foldData = balancedFolds[[foldId]],
-    hyperparameters = hyperparameters,
-    nRounds = nRounds,
-    earlyStoppingRounds = earlyStoppingRounds,
-    seed = seed + foldId,
-    nThreads = nThreads,
-    evalMetric = evalMetric,
-    engine = engine,
-    prAucBackend = prAucBackend
+  tryCatch(
+    TuneBoostTree_RunOneFold(
+      foldData = balancedFolds[[foldId]],
+      hyperparameters = hyperparameters,
+      nRounds = nRounds,
+      earlyStoppingRounds = earlyStoppingRounds,
+      seed = seed + foldId,
+      nThreads = nThreads,
+      evalMetric = evalMetric,
+      engine = engine,
+      prAucBackend = prAucBackend
+    ),
+    error = function(e) {
+      list(
+        score = NA_real_,
+        bestIteration = NA_integer_,
+        errorMessage = conditionMessage(e)
+      )
+    }
   )
 }
 ####
@@ -2522,15 +2568,15 @@ TuneBoostTree_RunOneFold <- function(
     engine = engine
   )
 
-  testObject <- TuneBoostTree_CreateDataObject(
-    xMatrix = foldData$xTest,
-    yData = foldData$yTest,
-    featureTypes = foldData$featureTypes,
-    nThreads = nThreads,
-    engine = engine
-  )
-
   if(engine == "xgboost"){
+    testObject <- TuneBoostTree_CreateDataObject(
+      xMatrix = foldData$xTest,
+      yData = foldData$yTest,
+      featureTypes = foldData$featureTypes,
+      nThreads = nThreads,
+      engine = engine
+    )
+
     foldModel <- xgboost::xgb.train(
       params = paramsValue,
       data = trainObject,
@@ -2549,14 +2595,31 @@ TuneBoostTree_RunOneFold <- function(
 
     predictedProbability <- as.numeric(stats::predict(foldModel, newdata = testObject))
   } else {
-    foldModel <- lightgbm::lgb.train(
+    paramsValue$early_stopping_round <- as.integer(earlyStoppingRounds)
+    testObject <- lightgbm::lgb.Dataset.create.valid(
+      dataset = trainObject,
+      data = foldData$xTest,
+      label = foldData$yTest
+    )
+    trainArgs <- list(
       params = paramsValue,
       data = trainObject,
       nrounds = as.integer(nRounds),
       valids = list(eval = testObject),
-      early_stopping_rounds = as.integer(earlyStoppingRounds),
       verbose = -1L
     )
+    foldModel <- tryCatch(
+      do.call(lightgbm::lgb.train, trainArgs),
+      error = function(e) e
+    )
+    if(inherits(foldModel, "error") && paramsValue$metric %in% c("average_precision", "aucpr")){
+      paramsValue$metric <- "auc"
+      trainArgs$params <- paramsValue
+      foldModel <- do.call(lightgbm::lgb.train, trainArgs)
+    }
+    if(inherits(foldModel, "error")){
+      stop(foldModel)
+    }
 
     bestIterFold <- as.integer(foldModel$best_iter)
 
@@ -3888,7 +3951,11 @@ FitBoostTreeModel <- function(
   }
 
   if(is.null(hyperparameters$eval_metric)){
-    evalMetric <- "aucpr"
+    if(engine == "xgboost"){
+      evalMetric <- "aucpr"
+    } else {
+      evalMetric <- "average_precision"
+    }
   } else {
     evalMetric <- as.character(hyperparameters$eval_metric)
   }
@@ -3928,12 +3995,24 @@ FitBoostTreeModel <- function(
       verbose = as.integer(verbose)
     )
   } else {
-    model <- lightgbm::lgb.train(
+    trainArgs <- list(
       params = paramsValue,
       data = trainObject,
       nrounds = nRounds,
       verbose = as.integer(verbose)
     )
+    model <- tryCatch(
+      do.call(lightgbm::lgb.train, trainArgs),
+      error = function(e) e
+    )
+    if(inherits(model, "error") && paramsValue$metric %in% c("average_precision", "aucpr")){
+      paramsValue$metric <- "auc"
+      trainArgs$params <- paramsValue
+      model <- do.call(lightgbm::lgb.train, trainArgs)
+    }
+    if(inherits(model, "error")){
+      stop(model)
+    }
   }
 
   if(is.null(hyperparameters$threshold)){
