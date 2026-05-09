@@ -1865,17 +1865,78 @@ TuneBoostTree_CreateDataObject <- function(
 #' @noRd
 TuneBoostTree_CreateStratifiedFolds <- function(yData, nFolds = 10L, seed = 42L) {
 
+  if(length(yData) == 0L || anyNA(yData)){
+    cli::cli_abort("`yData` must be a non-empty binary vector encoded as 0/1 or FALSE/TRUE.")
+  }
+  if(is.logical(yData)){
+    yData <- as.integer(yData)
+  } else if(is.numeric(yData) && all(yData %in% c(0, 1))){
+    yData <- as.integer(yData)
+  } else {
+    cli::cli_abort("`yData` must be a non-empty binary vector encoded as 0/1 or FALSE/TRUE.")
+  }
+
+  nFolds <- as.integer(nFolds)
+
+  if(length(nFolds) != 1L || is.na(nFolds) || nFolds < 2L){
+    cli::cli_abort("`nFolds` must be a single integer greater than or equal to 2.")
+  }
+
+  classCounts <- table(yData)
+  if(length(classCounts) != 2L || any(classCounts == 0L)){
+    cli::cli_abort("`yData` must contain both binary classes.")
+  }
+  if(any(classCounts < nFolds)){
+    cli::cli_abort("Each binary class must contain at least `nFolds` observations for stratified folds.")
+  }
+
+  if(exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)){
+    oldSeed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  } else {
+    oldSeed <- NULL
+  }
+  on.exit({
+    if(is.null(oldSeed)){
+      if(exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)){
+        rm(".Random.seed", envir = .GlobalEnv)
+      }
+    } else {
+      assign(".Random.seed", oldSeed, envir = .GlobalEnv)
+    }
+  }, add = TRUE)
+
   set.seed(seed)
-  negativeIndex <- sample(which(as.integer(yData) == 0L))
-  positiveIndex <- sample(which(as.integer(yData) == 1L))
-  folds <- vector("list", as.integer(nFolds))
-  for(foldId in seq_len(as.integer(nFolds))){
+  negativeIndex <- sample(which(yData == 0L))
+  positiveIndex <- sample(which(yData == 1L))
+  folds <- vector("list", nFolds)
+  for(foldId in seq_len(nFolds)){
     folds[[foldId]] <- c(
       negativeIndex[seq(foldId, length(negativeIndex), by = nFolds)],
       positiveIndex[seq(foldId, length(positiveIndex), by = nFolds)]
     )
   }
   folds
+}
+####
+## Fim
+#
+
+#' Dividir dados em folds estratificados para boost-tree
+#'
+#' @param yData Vetor binário inteiro ou lógico da variável resposta.
+#' @param nFolds Inteiro com número de folds.
+#' @param seed Inteiro usado como semente aleatória.
+#'
+#' @description
+#' Cria folds estratificados para dados binários 0/1, usando a mesma lógica de
+#' estratificação do tuner.
+#'
+#' @return Lista de vetores inteiros. Cada elemento contém os índices de teste de
+#'   um fold; os índices de treino são obtidos pelo complemento.
+#' @export
+SplitDataBoostTreeFolds <- function(yData, nFolds = 10L, seed = 42L) {
+
+  TuneBoostTree_CreateStratifiedFolds(yData = yData, nFolds = nFolds, seed = seed)
 }
 ####
 ## Fim
@@ -3046,6 +3107,15 @@ TuneBoostTree_RunRBayesianOptimization <- function(
 
   set.seed(as.integer(seed))
   normalizedBounds <- lapply(bounds, function(x) c(as.numeric(x[1L]), as.numeric(x[2L])))
+  parameterNames <- names(bounds)
+  if(!is.null(initGridDt)){
+    initGridDt <- as.data.frame(initGridDt, stringsAsFactors = FALSE)
+    if("Value" %in% names(initGridDt)){
+      initGridDt <- initGridDt[is.finite(as.numeric(initGridDt$Value)), c(parameterNames, "Value"), drop = FALSE]
+    } else {
+      initGridDt <- NULL
+    }
+  }
   result <- rBayesianOptimization::BayesianOptimization(
     FUN = objective,
     bounds = normalizedBounds,
@@ -3597,6 +3667,151 @@ TuneBoostTree_IsScoreMatch <- function(scoreA, scoreB, tolerance = 1e-6) {
 ## Fim
 #
 
+
+#' Encontrar melhor iteração associada ao melhor score
+#' @noRd
+TuneBoostTree_FindBestIteration <- function(evaluationLog, hyperparameters, bestScore, bounds) {
+
+  if(is.null(evaluationLog) || nrow(evaluationLog) == 0L || is.null(bounds)){
+    return(NULL)
+  }
+
+  parameterNames <- names(bounds)
+  missingNames <- setdiff(c(parameterNames, "Value", "bestIteration"), names(evaluationLog))
+  if(length(missingNames) > 0L){
+    return(NULL)
+  }
+
+  scoreMatches <- vapply(
+    evaluationLog$Value,
+    TuneBoostTree_IsScoreMatch,
+    logical(1L),
+    scoreB = bestScore
+  )
+  if(!any(scoreMatches)){
+    return(NULL)
+  }
+
+  parameterData <- as.data.frame(hyperparameters[parameterNames], stringsAsFactors = FALSE)
+  parameterData <- TuneBoostTree_NormalizeParams(parameterData, parameterNames)
+  logData <- TuneBoostTree_NormalizeParams(evaluationLog[, parameterNames, drop = FALSE], parameterNames)
+  parameterMatches <- rep(TRUE, nrow(logData))
+  for(parameterName in parameterNames){
+    parameterMatches <- parameterMatches & logData[[parameterName]] == parameterData[[parameterName]][[1L]]
+  }
+
+  candidateRows <- which(scoreMatches & parameterMatches & is.finite(evaluationLog$bestIteration))
+  if(length(candidateRows) == 0L){
+    candidateRows <- which(scoreMatches & is.finite(evaluationLog$bestIteration))
+  }
+  if(length(candidateRows) == 0L){
+    return(NULL)
+  }
+
+  bestIteration <- as.integer(round(evaluationLog$bestIteration[[candidateRows[[1L]]]]))
+  if(is.na(bestIteration) || bestIteration < 1L){
+    return(NULL)
+  }
+  bestIteration
+}
+####
+## Fim
+#
+
+#' Criar grade inicial a partir do log de avaliações
+#' @noRd
+TuneBoostTree_CreateInitGrid <- function(evaluationLog, bounds) {
+
+  if(is.null(evaluationLog) || nrow(evaluationLog) == 0L){
+    return(NULL)
+  }
+  TuneBoostTree_DeduplicateInitGrid(evaluationLog, bounds)
+}
+####
+## Fim
+#
+
+#' Combinar grades iniciais antigas e novas
+#' @noRd
+TuneBoostTree_CombineInitGrid <- function(oldInitGrid, newInitGrid, bounds) {
+
+  if(is.null(oldInitGrid) || nrow(oldInitGrid) == 0L){
+    return(TuneBoostTree_DeduplicateInitGrid(newInitGrid, bounds))
+  }
+  if(is.null(newInitGrid) || nrow(newInitGrid) == 0L){
+    return(TuneBoostTree_DeduplicateInitGrid(oldInitGrid, bounds))
+  }
+
+  commonNames <- union(names(oldInitGrid), names(newInitGrid))
+  oldData <- as.data.frame(oldInitGrid, stringsAsFactors = FALSE)
+  newData <- as.data.frame(newInitGrid, stringsAsFactors = FALSE)
+  for(name in setdiff(commonNames, names(oldData))){
+    oldData[[name]] <- NA
+  }
+  for(name in setdiff(commonNames, names(newData))){
+    newData[[name]] <- NA
+  }
+
+  TuneBoostTree_DeduplicateInitGrid(
+    rbind(oldData[, commonNames, drop = FALSE], newData[, commonNames, drop = FALSE]),
+    bounds
+  )
+}
+####
+## Fim
+#
+
+#' Deduplicar grade inicial por parâmetros normalizados
+#' @noRd
+TuneBoostTree_DeduplicateInitGrid <- function(initGrid, bounds) {
+
+  if(is.null(initGrid)){
+    return(NULL)
+  }
+
+  initGrid <- as.data.frame(initGrid, stringsAsFactors = FALSE)
+  if(nrow(initGrid) == 0L){
+    return(initGrid)
+  }
+
+  parameterNames <- names(bounds)
+  initGrid <- TuneBoostTree_CompleteParameterGrid(initGrid, bounds)
+  extraNames <- setdiff(names(initGrid), parameterNames)
+  parameterData <- TuneBoostTree_ValidateCandidate(initGrid[, parameterNames, drop = FALSE], bounds)
+  out <- data.frame(parameterData, stringsAsFactors = FALSE)
+
+  for(extraName in extraNames){
+    out[[extraName]] <- initGrid[[extraName]]
+  }
+
+  if(!"Value" %in% names(out)){
+    out$Value <- NA_real_
+  }
+  out$Value <- as.numeric(out$Value)
+
+  if(nrow(out) == 0L){
+    return(out)
+  }
+
+  key <- do.call(
+    paste,
+    c(lapply(parameterNames, function(parameterName) out[[parameterName]]), sep = "\r")
+  )
+  orderValue <- ifelse(is.finite(out$Value), out$Value, -Inf)
+  keepRows <- unlist(
+    tapply(
+      seq_len(nrow(out)),
+      key,
+      function(rowIds) rowIds[which.max(orderValue[rowIds])][[1L]]
+    ),
+    use.names = FALSE
+  )
+
+  out[sort(keepRows), , drop = FALSE]
+}
+####
+## Fim
+#
 
 #' Complete Parameter Grid Columns
 #' @noRd
