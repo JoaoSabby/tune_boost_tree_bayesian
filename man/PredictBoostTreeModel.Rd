@@ -1,12 +1,12 @@
 \name{PredictBoostTreeModel}
 \alias{PredictBoostTreeModel}
-\title{Predict with a Boosted Tree Model}
+\title{Predizer com modelo boosted tree}
 \usage{PredictBoostTreeModel(modelObj, newdata, threshold = NULL, engine_boost_tree = NULL)}
 \arguments{
-\item{modelObj}{Model object returned by \code{FitBoostTreeModel()}.}
-\item{newdata}{New data frame containing all predictor columns.}
-\item{threshold}{Positive-class probability threshold. When \code{NULL}, uses \code{modelObj$threshold} if present, otherwise 0.5.}
-\item{engine_boost_tree}{Optional engine override; defaults to \code{modelObj$engine}.}
+\item{modelObj}{Objeto de modelo retornado por \code{FitBoostTreeModel()}.}
+\item{newdata}{Novo data.frame contendo todas as colunas preditoras.}
+\item{threshold}{Limiar de probabilidade da classe positiva. Quando \code{NULL}, usa \code{modelObj$threshold} se existir; caso contrário, usa \code{0.5}.}
+\item{engine_boost_tree}{Override opcional da engine; por padrão usa \code{modelObj$engine}.}
 }
-\description{Returns predicted class labels and both binary class probabilities for a fitted boosted tree model, using the tuned threshold by default when available.}
-\value{A data frame with predicted class and class probabilities.}
+\description{Retorna classes preditas e probabilidades das duas classes para um modelo boosted tree ajustado, usando o threshold tunado por padrão quando disponível.}
+\value{Tibble com \code{predictedClass}, \code{probabilityFirstClass} e \code{probabilitySecondClass}. A segunda probabilidade corresponde à classe positiva armazenada no modelo.}

@@ -1,10 +1,10 @@
 \docType{package}
 \name{TuneBoostTreeBayesian-package}
 \alias{TuneBoostTreeBayesian-package}
-\title{Bayesian Tuning for Binary Boosted Tree Models}
+\title{Tuning Bayesiano para modelos boosted tree binários}
 \description{
-Performance-oriented Bayesian hyperparameter tuning for binary boosted tree models with LightGBM as the default engine, XGBoost as a required alternative engine, rBayesianOptimization as the default optimizer, parsnip-style boost-tree parameter names, cached cross-validation, optional Limbo ask/tell optimization, automatic parallel controls, class-imbalance handling, and optional native PR-AUC scoring backends.
+Tuning Bayesiano orientado a performance para modelos boosted tree binários com LightGBM como engine padrão, XGBoost como engine alternativa, rBayesianOptimization como otimizador padrão, nomes de hiperparâmetros no estilo parsnip, validação cruzada em cache, otimização ask/tell opcional com Limbo, controles automáticos de paralelismo, tratamento de desbalanceamento de classes e backends opcionais de scoring PR-AUC nativos.
 }
 \seealso{
-\code{\link{TuneBoostTreeBayesian}}, \code{\link{TuneBoostTreeBoostParams}}
+\code{\link{TuneBoostTree}}, \code{\link{TuneBoostTreeBoostParams}}
 }

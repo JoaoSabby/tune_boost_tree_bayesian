@@ -5,7 +5,7 @@
 ## API principal
 
 ```r
-resultado <- TuneBoostTreeBayesian(
+resultado <- TuneBoostTree(
   formula,
   data,
   initial = 20L,
@@ -21,9 +21,9 @@ Argumentos principais:
 - `initial`: `NULL`, inteiro com número de pontos iniciais, ou tabela (`data.frame`, `tibble`, `data.table`) com histórico de avaliações.
 - `nIter`: número de iterações Bayesianas após a inicialização.
 - `engine`: `"lightgbm"` é o padrão principal; `"xgboost"`, `TuneBoostTreeLightgbm()` e `TuneBoostTreeXgboost()` continuam disponíveis.
-- `optimizer`: por padrão usa `TuneBoostTreeRBayesianOptimization()`; Limbo externo é opcional e deve ser escolhido explicitamente com `TuneBoostTreeLimbo()`.
+- `optimizer`: por padrão usa `TuneBoostTreeOptimizerRBayesianOptimization()`; Limbo externo é opcional e deve ser escolhido explicitamente com `TuneBoostTreeOptimizerLimbo()`.
 
-Por padrão, o espaço de busca contém somente `learn_rate`, `tree_depth`, `min_n`, `loss_reduction` e `sample_size`. Parâmetros como `mtry` e `max_bin` continuam aceitos como fixos em `TuneBoostTreeBoostParams()` ou como opcionais em `TuneBoostTreeSearchSpace()`, mas não são mais tunados por padrão para manter a busca mais rápida, estável e alinhada ao objetivo operacional.
+Por padrão, o espaço de busca contém somente `learn_rate`, `tree_depth`, `min_n`, `loss_reduction` e `sample_size`. Parâmetros como `mtry` e `max_bin` continuam aceitos como fixos em `TuneBoostTreeBoostParams()` ou como opcionais em `TuneBoostTreeSearchSpace()`, mas não são mais tunados por padrão para manter a busca mais rápida, estável e alinhada ao objetivo operacional. Em `TuneBoostTreeBoostParams()`, `mtry = "default"` fixa o uso de aproximadamente 80% das features por divisão/nó.
 
 ## Instalação
 
@@ -63,7 +63,7 @@ R CMD INSTALL .
 
 ### Instalação opcional do Limbo externo
 
-O uso padrão não exige Limbo: `TuneBoostTreeBayesian()` usa LightGBM com `TuneBoostTreeRBayesianOptimization()` por padrão. Se quiser usar o Limbo C++ como otimizador externo ask/tell, rode o script incluído no pacote:
+O uso padrão não exige Limbo: `TuneBoostTree()` usa LightGBM com `TuneBoostTreeOptimizerRBayesianOptimization()` por padrão. Se quiser usar o Limbo C++ como otimizador externo ask/tell, rode o script incluído no pacote:
 
 ```bash
 ./inst/scripts/install_limbo.sh
@@ -77,12 +77,12 @@ O script clona/compila `https://github.com/resibots/limbo`, instala dependência
   --adapter-command /opt/tbtb-limbo/bin/tbtb-limbo-ask
 ```
 
-Importante: Limbo é a biblioteca C++; o pacote R chama um executável externo compatível com o contrato `tbtb-limbo-ask bounds.csv observations.csv config.csv candidate.csv`. Esse adaptador deve existir no caminho configurado em `TBTB_LIMBO_COMMAND` ou ser passado em `TuneBoostTreeLimbo(command = "/caminho/tbtb-limbo-ask")`. Se o Limbo externo for selecionado com `fallback = TRUE` e falhar, o pacote usa o otimizador interno seguro.
+Importante: Limbo é a biblioteca C++; o pacote R chama um executável externo compatível com o contrato `tbtb-limbo-ask bounds.csv observations.csv config.csv candidate.csv`. Esse adaptador deve existir no caminho configurado em `TBTB_LIMBO_COMMAND` ou ser passado em `TuneBoostTreeOptimizerLimbo(command = "/caminho/tbtb-limbo-ask")`. Se o Limbo externo for selecionado com `fallback = TRUE` e falhar, o pacote usa o otimizador interno seguro.
 
 ## Cenário 1: uso padrão seguro e rápido
 
 ```r
-resultado <- TuneBoostTreeBayesian(
+resultado <- TuneBoostTree(
   formula = Attrition ~ Age + DailyRate + DistanceFromHome + MonthlyIncome,
   data = train_data,
   initial = 20L,
@@ -96,7 +96,7 @@ Esse cenário usa:
 - LightGBM com métrica `average_precision` como engine principal; XGBoost permanece disponível com `engine = "xgboost"`.
 - `rBayesianOptimization` como otimizador padrão da busca Bayesiana.
 - Busca Bayesiana sobre `learn_rate`, `tree_depth`, `min_n`, `loss_reduction` e `sample_size`.
-- Limbo externo somente quando configurado explicitamente via `TuneBoostTreeLimbo()`.
+- Limbo externo somente quando configurado explicitamente via `TuneBoostTreeOptimizerLimbo()`.
 - `parallel = "auto"`, dividindo folds e threads para evitar oversubscription.
 - PR-AUC backend `"auto"`.
 - `scale_pos_weight = "auto"`.
@@ -104,7 +104,7 @@ Esse cenário usa:
 ## Cenário 2: warm start com tibble ou data.table
 
 ```r
-resultado_2 <- TuneBoostTreeBayesian(
+resultado_2 <- TuneBoostTree(
   formula = formula_attrition,
   data = train_data,
   initial = resultado_1$initial,
@@ -117,7 +117,7 @@ Quando `initial` é tabular, a tabela deve conter `learn_rate`, `tree_depth`, `m
 ## Cenário 3: configuração explícita de boosting
 
 ```r
-resultado <- TuneBoostTreeBayesian(
+resultado <- TuneBoostTree(
   formula = formula_attrition,
   data = train_data,
   boost = TuneBoostTreeBoostParams(
@@ -126,7 +126,7 @@ resultado <- TuneBoostTreeBayesian(
     mtry = 1,
     max_bin = 256L
   ),
-  search_space = TuneBoostTreeSearchSpace(
+  searchSpace = TuneBoostTreeSearchSpace(
     learn_rate = c(0.005, 0.2),
     tree_depth = c(2L, 12L),
     min_n = c(1L, 80L),
@@ -141,10 +141,10 @@ resultado <- TuneBoostTreeBayesian(
 ## Cenário 4: Limbo opcional estrito em produção/HPC
 
 ```r
-resultado <- TuneBoostTreeBayesian(
+resultado <- TuneBoostTree(
   formula = formula_attrition,
   data = train_data,
-  optimizer = TuneBoostTreeLimbo(
+  optimizer = TuneBoostTreeOptimizerLimbo(
     command = Sys.getenv("TBTB_LIMBO_COMMAND"),
     fallback = FALSE,
     acquisition = "ucb",
@@ -161,7 +161,7 @@ Com `fallback = FALSE`, a execução falha antes da CV se o executável Limbo n�
 
 ## Cenário 5: balanceamento com argumentos exclusivos
 
-Toda configuração que recebe uma função expõe `...` para parâmetros exclusivos dessa função. O balanceamento é chamado uma vez por fold como `balance_fn(data, formula, ...)`.
+Toda configuração que recebe uma função expõe `...` para parâmetros exclusivos dessa função. O balanceamento é chamado uma vez por fold como `balanceFn(data, formula, ...)`.
 
 ```r
 meu_balanceador <- function(data, formula, target_ratio = 0.5, seed = 1L) {
@@ -169,11 +169,11 @@ meu_balanceador <- function(data, formula, target_ratio = 0.5, seed = 1L) {
   data
 }
 
-resultado <- TuneBoostTreeBayesian(
+resultado <- TuneBoostTree(
   formula = formula_attrition,
   data = train_data,
   imbalance = TuneBoostTreeImbalance(
-    balance_fn = meu_balanceador,
+    balanceFn = meu_balanceador,
     scale_pos_weight = "auto",
     target_ratio = 0.7,
     seed = 2026L
@@ -190,13 +190,13 @@ resultado <- TuneBoostTreeBayesian(
 ## Cenário 6: paralelismo automático ou explícito
 
 ```r
-resultado_auto <- TuneBoostTreeBayesian(
+resultado_auto <- TuneBoostTree(
   formula = formula_attrition,
   data = train_data,
   control = TuneBoostTreeControl(parallel = "auto")
 )
 
-resultado_manual <- TuneBoostTreeBayesian(
+resultado_manual <- TuneBoostTree(
   formula = formula_attrition,
   data = train_data,
   control = TuneBoostTreeControl(
@@ -210,6 +210,26 @@ resultado_manual <- TuneBoostTreeBayesian(
 ```
 
 `parallel = "auto"` prioriza segurança: detecta o orçamento de cores físicos, evita oversubscription, usa execução sequencial para bases pequenas e distribui folds quando há ganho provável.
+
+### Como o paralelismo é executado
+
+O paralelismo do pacote tem dois níveis distintos:
+
+1. **Paralelismo entre folds**, coordenado pelo R.
+2. **Paralelismo interno da engine**, coordenado pelo XGBoost ou LightGBM durante o treino de cada fold.
+
+Na validação cruzada, os folds são distribuídos com o pacote base `parallel`:
+
+- quando há apenas um worker, os folds rodam em loop sequencial dentro do R;
+- no Windows, o pacote usa cluster PSOCK com `parallel::makeCluster()` e `parallel::parLapply()`;
+- em Linux, macOS e outros sistemas Unix-like, o pacote usa fork com `parallel::mclapply(..., mc.cores = workers)`.
+
+Ou seja, o XGBoost e o LightGBM **não recebem a lista de folds para paralelizar entre folds**. Essa distribuição é feita pelo R. O que é passado às engines é o número de threads disponível para cada treino individual dentro de cada fold:
+
+- no XGBoost, `threads_per_worker` é convertido para `nthread` nos parâmetros de treino e também é usado na construção do `xgb.DMatrix`;
+- no LightGBM, `threads_per_worker` é convertido para `num_threads` nos parâmetros de treino; o `lgb.Dataset` é criado sem receber threads diretamente.
+
+Na prática, `workers` controla quantos folds podem treinar ao mesmo tempo, enquanto `threads_per_worker` controla quantas threads cada modelo XGBoost/LightGBM pode usar dentro do seu próprio fold. O modo automático tenta manter `workers * threads_per_worker` dentro do orçamento de cores físicos detectado, reduzindo o risco de oversubscription.
 
 ## Cenário 7: ultra otimizado
 
@@ -254,7 +274,7 @@ Consulte `CHECKLIST.md` para o checklist completo de revisão de implementação
 
 As funções públicas `FitBoostTreeModel()`, `PredictBoostTreeModel()` e `SplitDataBoostTreeFolds()` são exportadas no pacote e podem ser chamadas diretamente após `library(TuneBoostTreeBayesian)`. O fluxo recomendado é:
 
-1. usar `TuneBoostTreeBayesian()` para encontrar hiperparâmetros;
+1. usar `TuneBoostTree()` para encontrar hiperparâmetros;
 2. treinar o modelo final com `FitBoostTreeModel()` usando `resultado$bestHyperparameters` — por padrão em LightGBM, ou com `engine_boost_tree = "xgboost"` para a alternativa;
 3. gerar predições com `PredictBoostTreeModel()`;
 4. calcular métricas externas, por exemplo com `yardstick`.
@@ -310,14 +330,14 @@ writeLines(c(
 ), fake_limbo)
 Sys.chmod(fake_limbo, "0755")
 
-resultado <- TuneBoostTreeBayesian(
+resultado <- TuneBoostTree(
   Class ~ A + B,
   data = train_data,
   engine = "lightgbm",
   initial = 2L,
   nIter = 1L,
   boost = TuneBoostTreeBoostParams(trees = 12L, stop_iter = 3L, mtry = 1, max_bin = 64L),
-  search_space = TuneBoostTreeSearchSpace(
+  searchSpace = TuneBoostTreeSearchSpace(
     learn_rate = c(0.03, 0.12),
     tree_depth = c(2L, 4L),
     min_n = c(1L, 12L),
@@ -325,7 +345,7 @@ resultado <- TuneBoostTreeBayesian(
     sample_size = c(0.7, 1)
   ),
   cv = TuneBoostTreeCv(folds = 2L),
-  optimizer = TuneBoostTreeLimbo(command = fake_limbo, fallback = FALSE),
+  optimizer = TuneBoostTreeOptimizerLimbo(command = fake_limbo, fallback = FALSE),
   control = TuneBoostTreeControl(parallel = FALSE, verbose = FALSE)
 )
 
@@ -355,16 +375,16 @@ bal_accuracy(metric_data, truth, estimate, event_level = "second")
 ## Exemplo completo: LightGBM principal com rBayesianOptimization
 
 ```r
-optimizer_rbo <- TuneBoostTreeRBayesianOptimization(acquisition = "ucb", kappa = 2.576, eps = 0)
+optimizer_rbo <- TuneBoostTreeOptimizerRBayesianOptimization(acquisition = "ucb", kappa = 2.576, eps = 0)
 
-resultado_lgb_rbo <- TuneBoostTreeBayesian(
+resultado_lgb_rbo <- TuneBoostTree(
   Class ~ A + B,
   data = train_data,
   engine = "lightgbm",
   initial = 2L,
   nIter = 1L,
   boost = TuneBoostTreeBoostParams(trees = 12L, stop_iter = 3L, mtry = 1, max_bin = 64L),
-  search_space = TuneBoostTreeSearchSpace(
+  searchSpace = TuneBoostTreeSearchSpace(
     learn_rate = c(0.03, 0.12), tree_depth = c(2L, 4L), min_n = c(1L, 12L),
     loss_reduction = c(0, 2), sample_size = c(0.7, 1)
   ),
@@ -377,19 +397,19 @@ resultado_lgb_rbo <- TuneBoostTreeBayesian(
 ## Exemplo completo: XGBoost alternativo com Limbo externo/fake
 
 ```r
-resultado_xgb_limbo <- TuneBoostTreeBayesian(
+resultado_xgb_limbo <- TuneBoostTree(
   Class ~ A + B,
   data = train_data,
   engine = "xgboost",
   initial = 2L,
   nIter = 1L,
   boost = TuneBoostTreeBoostParams(trees = 12L, stop_iter = 3L, mtry = 1, max_bin = 64L),
-  search_space = TuneBoostTreeSearchSpace(
+  searchSpace = TuneBoostTreeSearchSpace(
     learn_rate = c(0.03, 0.12), tree_depth = c(2L, 4L), min_n = c(1L, 12L),
     loss_reduction = c(0, 2), sample_size = c(0.7, 1)
   ),
   cv = TuneBoostTreeCv(folds = 2L),
-  optimizer = TuneBoostTreeLimbo(command = fake_limbo, fallback = FALSE),
+  optimizer = TuneBoostTreeOptimizerLimbo(command = fake_limbo, fallback = FALSE),
   control = TuneBoostTreeControl(parallel = FALSE, verbose = FALSE)
 )
 
@@ -405,14 +425,14 @@ modelo_xgb <- FitBoostTreeModel(
 ## Exemplo completo: XGBoost alternativo com rBayesianOptimization
 
 ```r
-resultado_xgb_rbo <- TuneBoostTreeBayesian(
+resultado_xgb_rbo <- TuneBoostTree(
   Class ~ A + B,
   data = train_data,
   engine = "xgboost",
   initial = 2L,
   nIter = 1L,
   boost = TuneBoostTreeBoostParams(trees = 12L, stop_iter = 3L, mtry = 1, max_bin = 64L),
-  search_space = TuneBoostTreeSearchSpace(
+  searchSpace = TuneBoostTreeSearchSpace(
     learn_rate = c(0.03, 0.12), tree_depth = c(2L, 4L), min_n = c(1L, 12L),
     loss_reduction = c(0, 2), sample_size = c(0.7, 1)
   ),

@@ -21,7 +21,7 @@ O uso mínimo é:
 ```{r}
 library(TuneBoostTreeBayesian)
 
-resultado <- TuneBoostTreeBayesian(
+resultado <- TuneBoostTree(
   formula = y ~ x1 + x2 + x3,
   data = treino,
   initial = 10L,
@@ -46,7 +46,7 @@ resultado <- TuneBoostTreeBayesian(
 3. Preditores são convertidos para matriz numérica; entradas sparse-like são direcionadas a `Matrix` esparsa quando possível.
 4. Folds estratificados são criados uma única vez.
 5. Objetos nativos (`xgb.DMatrix` ou `lgb.Dataset`) são cacheados por fold.
-6. O otimizador propõe candidatos no espaço `search_space`.
+6. O otimizador propõe candidatos no espaço `searchSpace`.
 7. Cada candidato é avaliado por CV com early stopping.
 8. O melhor ponto é retornado com `trees` inferido do melhor número de iterações.
 
@@ -55,7 +55,7 @@ resultado <- TuneBoostTreeBayesian(
 A ponte com Limbo usa arquivos CSV temporários. Isso mantém o objetivo em R, onde estão os dados e a CV, e delega apenas a proposta de novos pontos ao executável C++.
 
 ```{r}
-optimizer <- TuneBoostTreeLimbo(
+optimizer <- TuneBoostTreeOptimizerLimbo(
   command = Sys.getenv("TBTB_LIMBO_COMMAND"),
   fallback = FALSE,
   acquisition = "ucb"
@@ -106,7 +106,7 @@ Parâmetros fixos opcionais (`learn_rate`, `tree_depth`, `min_n`, `loss_reductio
 ## Espaço de busca: `TuneBoostTreeSearchSpace()`
 
 ```{r}
-search_space <- TuneBoostTreeSearchSpace(
+searchSpace <- TuneBoostTreeSearchSpace(
   learn_rate = c(0.01, 0.15),
   tree_depth = c(2L, 10L),
   min_n = c(1L, 50L),
@@ -145,13 +145,13 @@ my_balance <- function(data, formula, ratio = 0.7) {
 }
 
 imbalance <- TuneBoostTreeImbalance(
-  balance_fn = my_balance,
+  balanceFn = my_balance,
   scale_pos_weight = "auto",
   ratio = 0.7
 )
 ```
 
-Argumentos em `...` são encaminhados apenas para `balance_fn`.
+Argumentos em `...` são encaminhados apenas para `balanceFn`.
 
 ## Performance: `TuneBoostTreePerformance()`
 
@@ -188,7 +188,7 @@ control <- TuneBoostTreeControl(
 ## Padrão seguro
 
 ```{r}
-resultado <- TuneBoostTreeBayesian(
+resultado <- TuneBoostTree(
   formula = y ~ .,
   data = treino,
   initial = 10L,
@@ -199,10 +199,10 @@ resultado <- TuneBoostTreeBayesian(
 ## Produção com Limbo estrito
 
 ```{r}
-resultado <- TuneBoostTreeBayesian(
+resultado <- TuneBoostTree(
   formula = y ~ .,
   data = treino,
-  optimizer = TuneBoostTreeLimbo(
+  optimizer = TuneBoostTreeOptimizerLimbo(
     command = Sys.getenv("TBTB_LIMBO_COMMAND"),
     fallback = FALSE
   ),

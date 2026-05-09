@@ -1,6 +1,6 @@
 \name{FitBoostTreeModel}
 \alias{FitBoostTreeModel}
-\title{Fit a Tuned Boosted Tree Model}
+\title{Ajustar modelo boosted tree}
 \usage{
 FitBoostTreeModel(
   formula,
@@ -16,16 +16,16 @@ FitBoostTreeModel(
 )
 }
 \arguments{
-\item{formula}{A two-sided formula with one binary factor outcome and numeric predictors.}
-\item{dataTrain}{Training data frame. The target must be a factor with exactly two levels.}
-\item{hyperparameters}{Named list from \code{TuneBoostTreeBayesian()} or equivalent canonical names. If \code{threshold} is present, it is stored for default prediction-time classification.}
-\item{featureTypes}{Optional XGBoost feature type vector.}
-\item{targetLevels}{Optional two-level target ordering.}
-\item{scalePosWeight}{Optional positive-class weight.}
-\item{nThreads}{Integer engine threads.}
-\item{seed}{Integer random seed.}
-\item{verbose}{Engine verbosity.}
-\item{engine_boost_tree}{Engine name, \code{"xgboost"} or \code{"lightgbm"}.}
+\item{formula}{Fórmula de duas faces com uma variável resposta binária e preditores numéricos.}
+\item{dataTrain}{data.frame de treino. A resposta deve ter exatamente duas classes.}
+\item{hyperparameters}{Lista nomeada retornada por \code{TuneBoostTree()} ou lista equivalente com nomes canônicos de hiperparâmetros. Se \code{threshold} estiver presente, ele é armazenado para classificação padrão no momento da predição.}
+\item{featureTypes}{Vetor opcional de tipos de features do XGBoost.}
+\item{targetLevels}{Ordenação opcional de dois níveis da variável resposta.}
+\item{scalePosWeight}{Peso opcional da classe positiva; é calculado quando \code{NULL}.}
+\item{nThreads}{Inteiro com número de threads da engine.}
+\item{seed}{Inteiro usado como semente aleatória.}
+\item{verbose}{Verbosidade da engine.}
+\item{engine_boost_tree}{Nome da engine, \code{"xgboost"} ou \code{"lightgbm"}.}
 }
-\description{Fits a final LightGBM or XGBoost binary boosted tree model from tuned hyperparameters and stores class metadata plus the tuned decision threshold when supplied.}
-\value{A model object list containing the native model and metadata for prediction.}
+\description{Ajusta o modelo final LightGBM ou XGBoost com hiperparâmetros canônicos e isola a tradução de parâmetros no limite da engine.}
+\value{Lista nomeada com o modelo nativo em \code{model}, parâmetros efetivamente usados em \code{params}, nomes/tipos de features, níveis e nomes das classes, metadados da fórmula, número de rodadas em \code{nRounds}, \code{threshold} e \code{engine}.}

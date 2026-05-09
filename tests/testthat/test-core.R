@@ -9,7 +9,7 @@ test_that("Validadores de configuração rejeitam inputs perigosos", {
   expect_error(TuneBoostTreeBoostParams(trees = -10L), "positive integer")
   expect_error(TuneBoostTreeSearchSpace(mtry = c(1.5, 2.0)), "fractions in")
   expect_error(TuneBoostTreeCv(folds = 1L), "greater than or equal to 2")
-  expect_error(TuneBoostTreeLimbo(acquisition = ""), "non-empty string")
+  expect_error(TuneBoostTreeOptimizerLimbo(acquisition = ""), "arg")
   expect_error(TuneBoostTreeImbalance(scale_pos_weight = -5), "positive and finite")
 })
 
@@ -19,9 +19,9 @@ test_that("A ingestão de dados suporta múltiplos formatos tabulares de forma i
   tb <- as_tibble(df)
   dt <- as.data.table(df)
 
-  res_df <- TuneBoostTreeBayesian(y ~ x1 + x2, df, initial = 2L, nIter = 0L, engine = "xgboost", control = TuneBoostTreeControl(parallel = FALSE))
-  res_tb <- TuneBoostTreeBayesian(y ~ x1 + x2, tb, initial = 2L, nIter = 0L, engine = "xgboost", control = TuneBoostTreeControl(parallel = FALSE))
-  res_dt <- TuneBoostTreeBayesian(y ~ x1 + x2, dt, initial = 2L, nIter = 0L, engine = "xgboost", control = TuneBoostTreeControl(parallel = FALSE))
+  res_df <- TuneBoostTree(y ~ x1 + x2, df, initial = 2L, nIter = 0L, engine = "xgboost", control = TuneBoostTreeControl(parallel = FALSE))
+  res_tb <- TuneBoostTree(y ~ x1 + x2, tb, initial = 2L, nIter = 0L, engine = "xgboost", control = TuneBoostTreeControl(parallel = FALSE))
+  res_dt <- TuneBoostTree(y ~ x1 + x2, dt, initial = 2L, nIter = 0L, engine = "xgboost", control = TuneBoostTreeControl(parallel = FALSE))
 
   expect_true(is.list(res_df$bestHyperparameters))
   expect_equal(res_df$bestHyperparameters, res_tb$bestHyperparameters, tolerance = 1e-4)
@@ -91,9 +91,9 @@ test_that("Fallback seguro é ativado quando o Limbo não está disponível em S
   df <- data.frame(y = factor(sample(c("neg", "pos"), 50, replace=TRUE), levels = c("neg", "pos")), x = rnorm(50))
 
   expect_warning(
-    TuneBoostTreeBayesian(
+    TuneBoostTree(
       y ~ x, df, initial = 2L, nIter = 1L, engine = "xgboost",
-      optimizer = TuneBoostTreeLimbo(command = "caminho_inexistente", fallback = TRUE)
+      optimizer = TuneBoostTreeOptimizerLimbo(command = "caminho_inexistente", fallback = TRUE)
     )
   )
 })
