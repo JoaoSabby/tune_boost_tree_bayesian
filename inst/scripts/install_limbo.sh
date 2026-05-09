@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Objetivo: abortar cedo em erros e variáveis ausentes para não deixar uma instalação parcial do Limbo aparentar sucesso.
 
 usage() {
 
@@ -58,7 +57,6 @@ warn() {
 
 run() {
 
-  # Objetivo: permitir auditoria da instalação sem modificar o sistema quando o modo seco estiver ativo.
   if [[ "${DRY_RUN}" == "1" ]]; then
     printf '[install-limbo][dry-run]'
     printf ' %q' "$@"
@@ -73,7 +71,6 @@ run() {
 
 append_or_replace_kv() {
 
-  # Objetivo: manter arquivos de ambiente idempotentes para evitar exports duplicados entre reinstalações.
   local file="$1"
   local key="$2"
   local value="$3"
@@ -103,7 +100,6 @@ append_or_replace_kv() {
 
 install_system_deps() {
 
-  # Objetivo: instalar apenas dependências mínimas de compilação quando a plataforma suportar apt-get, dnf ou yum.
   if [[ "${INSTALL_SYSTEM_DEPS}" != "1" ]]; then
     log "Skipping OS dependency installation (--no-system-deps)."
     return 0
@@ -183,7 +179,6 @@ install_system_deps() {
 
 clone_or_update_limbo() {
 
-  # Objetivo: reutilizar checkouts existentes para acelerar reinstalações e preservar o ref solicitado.
   mkdir -p "${SRC_DIR}"
   if [[ -d "${LIMBO_DIR}/.git" ]]; then
     log "Updating existing Limbo checkout at ${LIMBO_DIR}."
@@ -201,7 +196,6 @@ clone_or_update_limbo() {
 
 build_limbo() {
 
-  # Objetivo: compilar a biblioteca externa no prefixo controlado pelo pacote sem misturar artefatos com o projeto R.
   log "Configuring and building Limbo."
   run chmod +x "${LIMBO_DIR}/waf"
 
@@ -224,7 +218,6 @@ build_limbo() {
 
 write_reference_adapter() {
 
-  # Objetivo: instalar um executável ask/tell compatível para que o bridge Limbo possa ser exercitado após compilar a biblioteca externa.
   if [[ "${INSTALL_REFERENCE_ADAPTER}" != "1" ]]; then
     log "Skipping reference ask/tell adapter installation (--no-reference-adapter)."
     return 0
@@ -361,7 +354,6 @@ PY_ADAPTER
 
 write_environment() {
 
-  # Objetivo: persistir variáveis usadas pelo bridge ask/tell para que sessões R futuras encontrem o adaptador.
   log "Configuring TuneBoostTreeBayesian environment variables."
 
   if [[ "${UPDATE_RENVIRON}" == "1" ]]; then
@@ -386,7 +378,6 @@ write_environment() {
 ## Fim
 #
 
-# Objetivo: manter valores padrão explícitos e sobregraváveis pela linha de comando para instalações reprodutíveis.
 PREFIX="${HOME}/.local/tbtb-limbo"
 LIMBO_REF="release-2.1"
 LIMBO_REPO="https://github.com/resibots/limbo.git"
@@ -398,7 +389,6 @@ UPDATE_PROFILE="1"
 UPDATE_RENVIRON="1"
 DRY_RUN="0"
 
-# Objetivo: validar opções antes de qualquer operação de rede, compilação ou escrita em arquivos de ambiente.
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --prefix)
@@ -453,13 +443,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Objetivo: impedir timeouts inválidos que poderiam deixar chamadas externas presas ou falhando silenciosamente.
 if ! [[ "${TBTB_LIMBO_TIMEOUT_VALUE}" =~ ^[0-9]+$ ]] || [[ "${TBTB_LIMBO_TIMEOUT_VALUE}" -lt 1 ]]; then
   printf 'Invalid --timeout value: %s\n' "${TBTB_LIMBO_TIMEOUT_VALUE}" >&2
   exit 2
 fi
 
-# Objetivo: expandir caminhos do usuário uma única vez para que todos os comandos usem localizações absolutas coerentes.
 PREFIX="${PREFIX/#\~/${HOME}}"
 SRC_DIR="${PREFIX}/src"
 LIMBO_DIR="${SRC_DIR}/limbo"
@@ -474,7 +462,6 @@ log "Limbo ref: ${LIMBO_REF}"
 log "Limbo directory: ${LIMBO_DIR}"
 log "TBTB_LIMBO_COMMAND: ${ADAPTER_COMMAND}"
 
-# Objetivo: executar as etapas em ordem determinística para facilitar diagnóstico quando a instalação externa falhar.
 install_system_deps
 clone_or_update_limbo
 build_limbo

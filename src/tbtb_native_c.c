@@ -1,16 +1,13 @@
 #include <R.h>
-/* Objetivo: expor um cálculo de PR-AUC compilado para reduzir o custo do loop interno de validação cruzada. */
 #include <Rinternals.h>
 #include <stdlib.h>
 
-/* Objetivo: manter score, classe real e posição original juntos para ordenar probabilidades com desempate estável. */
 typedef struct {
   double predicted;
   int actual;
   R_xlen_t index;
 } TbtbPair;
 
-/* Objetivo: ordenar predições da maior para a menor sem perder reprodutibilidade quando houver empates. */
 static int tbtb_compare_pair(const void *a, const void *b) {
 
   const TbtbPair *pa = (const TbtbPair *)a;
@@ -22,7 +19,6 @@ static int tbtb_compare_pair(const void *a, const void *b) {
   return 0;
 }
 
-/* Objetivo: calcular a área PR diretamente em C para evitar alocações repetidas em R durante a otimização. */
 SEXP tbtb_pr_auc_c(SEXP actual_sexp, SEXP predicted_sexp) {
 
   if (XLENGTH(actual_sexp) != XLENGTH(predicted_sexp) || XLENGTH(actual_sexp) < 1) {

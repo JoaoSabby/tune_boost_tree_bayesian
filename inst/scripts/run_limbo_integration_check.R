@@ -1,7 +1,6 @@
 #!/usr/bin/env Rscript
 
-# Objetivo: executar uma tunagem pequena de ponta a ponta usando o executável
-# ask/tell configurado em TBTB_LIMBO_COMMAND, falhando se houver fallback.
+# Executa uma tunagem pequena de ponta a ponta usando o executável ask/tell configurado em TBTB_LIMBO_COMMAND
 
 command <- Sys.getenv("TBTB_LIMBO_COMMAND", unset = NA_character_)
 if(is.na(command) || !nzchar(command) || file.access(command, mode = 1L) != 0L){

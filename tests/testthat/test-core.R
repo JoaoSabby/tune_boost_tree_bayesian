@@ -65,7 +65,9 @@ test_that("Os backends de PR-AUC (C, Fortran e R base) produzem resultados equiv
 
   # Testar comportamento face a inputs inválidos
   expect_true(is.na(TuneBoostTreeBayesian:::TuneBoostTree_CalculatePrAuc(integer(0), numeric(0))))
-  expect_true(is.na(TuneBoostTreeBayesian:::TuneBoostTree_CalculatePrAuc(c(0,0,0), c(0.1,0.2,0.3)))) # Sem classe positiva
+
+  # Sem classe positiva
+  expect_true(is.na(TuneBoostTreeBayesian:::TuneBoostTree_CalculatePrAuc(c(0,0,0), c(0.1,0.2,0.3))))
 })
 
 # 5. Testes de Integração e Warm-Start (Limbo)
@@ -81,7 +83,7 @@ test_that("O sistema de Warm-Start deduplica históricos e processa data.frames 
     mtry = c(0.7, 0.7, 0.5),
     loss_reduction = c(0, 0, 1),
     max_bin = c(256, 256, 128),
-    Value = c(0.85, 0.90, 0.88) # O segundo é duplicado, mas com melhor score
+    Value = c(0.85, 0.90, 0.88)
   )
 
   dedup <- TuneBoostTreeBayesian:::TuneBoostTree_DeduplicateInitGrid(hist_grid, bounds)
