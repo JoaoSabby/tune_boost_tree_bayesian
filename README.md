@@ -112,7 +112,7 @@ resultado_2 <- TuneBoostTree(
 )
 ```
 
-Quando `initial` é tabular, a tabela deve conter `learn_rate`, `tree_depth`, `min_n`, `sample_size`, `loss_reduction` e `Value`. Colunas opcionais antigas são ignoradas quando não fazem parte do espaço de busca atual.
+Quando `initial` é tabular, a tabela deve conter `learn_rate`, `tree_depth`, `min_n`, `sample_size`, `loss_reduction` e `Value`. Colunas extras são ignoradas quando não fazem parte do espaço de busca atual.
 
 ## Cenário 3: configuração explícita de boosting
 
@@ -137,6 +137,20 @@ resultado <- TuneBoostTree(
   nIter = 60L
 )
 ```
+
+### O que cada parâmetro de `TuneBoostTreeBoostParams()` controla
+
+O objeto `boost` fixa escolhas do modelo e define o orçamento de treinamento. Valores diferentes de `NULL` prevalecem sobre limites com o mesmo nome em `searchSpace`; valores `NULL` deixam o parâmetro disponível para otimização quando houver limites em `TuneBoostTreeSearchSpace()`.
+
+- `trees`: teto de rodadas/árvores treinadas por fold; o valor final normalmente é reduzido pelo `early stopping` e gravado em `bestHyperparameters$trees`.
+- `stop_iter`: paciência do `early stopping`; valores maiores dão mais chance para modelos que melhoram lentamente, mas aumentam custo.
+- `learn_rate`: taxa de aprendizado fixa; valores menores exigem mais árvores e tendem a estabilizar a busca.
+- `tree_depth`: profundidade máxima fixa; aumenta capacidade de interação e também risco de sobreajuste.
+- `min_n`: tamanho/peso mínimo de nó ou folha; valores maiores tornam splits mais conservadores.
+- `loss_reduction`: ganho mínimo para split; valores maiores simplificam as árvores.
+- `sample_size`: fração de linhas por iteração; valores abaixo de 1 adicionam regularização estocástica.
+- `mtry`: fração de features por split/nó; `"default"` fixa 0.8, número fixa outra fração e `NULL` permite otimização.
+- `max_bin`: número de bins histogram-based; valores maiores preservam mais detalhe e consomem mais memória/tempo.
 
 ## Cenário 4: Limbo opcional estrito em produção/HPC
 
@@ -275,7 +289,7 @@ Consulte `CHECKLIST.md` para o checklist completo de revisão de implementação
 As funções públicas `FitBoostTreeModel()`, `PredictBoostTreeModel()` e `SplitDataBoostTreeFolds()` são exportadas no pacote e podem ser chamadas diretamente após `library(TuneBoostTreeBayesian)`. O fluxo recomendado é:
 
 1. usar `TuneBoostTree()` para encontrar hiperparâmetros;
-2. treinar o modelo final com `FitBoostTreeModel()` usando `resultado$bestHyperparameters` — por padrão em LightGBM, ou com `engineBoostTree = "xgboost"` para a alternativa;
+2. treinar o modelo final com `FitBoostTreeModel()` usando `resultado$bestHyperparameters` — por padrão em LightGBM, ou com `engine = "xgboost"` para a alternativa;
 3. gerar predições com `PredictBoostTreeModel()`;
 4. calcular métricas externas, por exemplo com `yardstick`.
 
@@ -373,7 +387,7 @@ modelo <- FitBoostTreeModel(
   train_data,
   resultado$bestHyperparameters,
   nThreads = 1L,
-  engineBoostTree = "lightgbm"
+  engine = "lightgbm"
 )
 
 pred <- PredictBoostTreeModel(modelo, test_data)
@@ -437,7 +451,7 @@ modelo_xgb <- FitBoostTreeModel(
   train_data,
   resultado_xgb_limbo$bestHyperparameters,
   nThreads = 1L,
-  engineBoostTree = "xgboost"
+  engine = "xgboost"
 )
 ```
 

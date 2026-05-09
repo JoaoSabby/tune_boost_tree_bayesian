@@ -1,6 +1,6 @@
 # Limbo ask/tell adapter contract
 
-`TuneBoostTreeBayesian()` can call an external Limbo-compatible ask/tell executable, while still providing a package-native Bayesian optimizer fallback when the executable is unavailable and `fallback = TRUE`.
+`TuneBoostTree()` can call an external Limbo-compatible ask/tell executable, while still providing a package-native Bayesian optimizer fallback when the executable is unavailable and `fallback = TRUE`.
 
 ## Invocation
 
@@ -10,7 +10,7 @@ Configure the executable with:
 Sys.setenv(TBTB_LIMBO_COMMAND = "/path/to/tbtb-limbo-ask")
 ```
 
-or pass `TuneBoostTreeLimbo(command = "/path/to/tbtb-limbo-ask")`. If neither is set, the package also checks `system.file("bin", "tbtb-limbo-ask", package = "TuneBoostTreeBayesian")`.
+or pass `TuneBoostTreeOptimizerLimbo(command = "/path/to/tbtb-limbo-ask")`. If neither is set, the package also checks `system.file("bin", "tbtb-limbo-ask", package = "TuneBoostTreeBayesian")`.
 
 The installer writes a packaged reference adapter to `PREFIX/bin/tbtb-limbo-ask` by default, after cloning/building the upstream Limbo library. Disable that behavior with `--no-reference-adapter` if you provide your own adapter.
 

@@ -2,7 +2,6 @@
 % Please edit documentation in R/TuneBoostTreeBayesian.R
 \name{TuneBoostTree}
 \alias{TuneBoostTree}
-\alias{TuneBoostTreeBayesian}
 \title{Tunar hiperparâmetros de gradient boosted trees}
 \usage{
 TuneBoostTree(
@@ -17,49 +16,23 @@ TuneBoostTree(
   optimizer = TuneBoostTreeOptimizerRBayesianOptimization(),
   imbalance = TuneBoostTreeImbalance(),
   performance = TuneBoostTreePerformance(),
-  control = TuneBoostTreeControl(),
-  ...
-)
-
-TuneBoostTreeBayesian(
-  formula,
-  data,
-  initial = 10L,
-  nIter = 30L,
-  engine = "lightgbm",
-  boost = TuneBoostTreeBoostParams(),
-  searchSpace = TuneBoostTreeSearchSpace(),
-  cv = TuneBoostTreeCv(),
-  optimizer = TuneBoostTreeOptimizerRBayesianOptimization(),
-  imbalance = TuneBoostTreeImbalance(),
-  performance = TuneBoostTreePerformance(),
-  control = TuneBoostTreeControl(),
-  ...
+  control = TuneBoostTreeControl()
 )
 }
 \arguments{
-\item{formula}{Fórmula de duas faces com uma variável resposta binária e preditores numéricos.}
-\item{data}{data.frame, tibble ou data.table não vazio contendo todas as linhas de treino e colunas referenciadas por \code{formula}.}
-\item{initial}{\code{NULL}, inteiro não negativo ou grade tabular de warm-start. Um inteiro solicita pontos iniciais aleatórios do otimizador. Uma tabela deve conter colunas de hiperparâmetros e a coluna \code{Value}; o \code{initial} retornado por uma execução pode ser reutilizado aqui.}
-\item{nIter}{Inteiro não negativo. Número de iterações de otimização Bayesiana após a inicialização.}
-\item{engine}{Texto escalar \code{"xgboost"}/\code{"lightgbm"} ou bloco de engine criado por \code{TuneBoostTreeXgboost()} ou \code{TuneBoostTreeLightgbm()}.}
-\item{boost}{Padrões de boosting criados por \code{TuneBoostTreeBoostParams()}. Valores fixos neste objeto sobrescrevem candidatos do otimizador.}
-\item{searchSpace}{Limites da busca Bayesiana criados por \code{TuneBoostTreeSearchSpace()}. O nome antigo \code{search_space} é aceito via \code{...} para compatibilidade.}
+\item{formula}{Fórmula de duas faces com uma variável resposta binária e preditores numéricos, por exemplo \code{classe ~ x1 + x2}. A resposta precisa ser fator com dois níveis e sem valores ausentes.}
+\item{data}{data.frame, tibble ou data.table não vazio contendo todas as linhas de treino e colunas referenciadas por \code{formula}; não passe \code{sparseMatrix} diretamente como tabela de entrada. Internamente a entrada tabular é padronizada para \code{data.frame} antes da criação das matrizes de engine.}
+\item{initial}{\code{NULL}, inteiro não negativo ou tabela de warm-start. Inteiro solicita pontos iniciais aleatórios; tabela deve conter colunas dos hiperparâmetros ativos e \code{Value}. O componente \code{initial} retornado por uma execução anterior pode ser reutilizado.}
+\item{nIter}{Inteiro não negativo. Número de iterações de otimização após os pontos iniciais. \code{0} avalia apenas \code{initial}/grade inicial quando fornecida.}
+\item{engine}{Texto \code{"lightgbm"}/\code{"xgboost"} ou configuração criada por \code{TuneBoostTreeLightgbm()} ou \code{TuneBoostTreeXgboost()}.}
+\item{boost}{Configuração criada por \code{TuneBoostTreeBoostParams()}. Define valores fixos do modelo, teto de \code{trees} e paciência \code{stop_iter}. Valores não nulos prevalecem sobre limites com o mesmo nome em \code{searchSpace}.}
+\item{searchSpace}{Limites da busca Bayesiana criados por \code{TuneBoostTreeSearchSpace()}. Define quais hiperparâmetros variam e suas faixas.}
 \item{cv}{Configuração de validação cruzada criada por \code{TuneBoostTreeCv()}; controla \code{folds} e exige \code{stratified = TRUE}.}
-\item{optimizer}{Configuração de otimizador criada por \code{TuneBoostTreeOptimizerRBayesianOptimization()}, \code{TuneBoostTreeOptimizerLimbo()} ou \code{TuneBoostTreeInternalOptimizer()}.}
-\item{imbalance}{Configuração de desbalanceamento criada por \code{TuneBoostTreeImbalance()}.}
-\item{performance}{Configuração de métrica/scoring criada por \code{TuneBoostTreePerformance()}.}
-\item{control}{Controles de execução criados por \code{TuneBoostTreeControl()}; define \code{seed}, \code{parallel}, \code{verbose} e \code{fallback_trees}.}
-\item{...}{Argumentos de compatibilidade. \code{search_space} é mapeado para \code{searchSpace}; qualquer outro nome é rejeitado.}
+\item{optimizer}{Configuração criada por \code{TuneBoostTreeOptimizerRBayesianOptimization()}, \code{TuneBoostTreeOptimizerLimbo()} ou \code{TuneBoostTreeInternalOptimizer()}. Controla backend, aquisição, \code{kappa}, \code{eps} e fallback.}
+\item{imbalance}{Configuração criada por \code{TuneBoostTreeImbalance()}. Controla função de balanceamento por fold, argumentos da função e \code{scale_pos_weight}.}
+\item{performance}{Configuração criada por \code{TuneBoostTreePerformance()}. Atualmente otimiza \code{"pr_auc"} e permite escolher o backend de cálculo.}
+\item{control}{Controles criados por \code{TuneBoostTreeControl()}: seed, paralelismo, verbosidade e fallback de árvores.}
 }
-\value{Objeto de classe \code{tbtb_tune_result} (também uma lista) com os componentes abaixo.
-\itemize{
-\item \code{bestHyperparameters}: lista com o melhor conjunto de hiperparâmetros encontrado. Inclui parâmetros tunados, parâmetros fixos de \code{boost}, \code{trees} escolhido por \code{early stopping}, \code{stop_iter}, \code{eval_metric}, \code{scale_pos_weight} quando aplicável e \code{threshold} otimizado. É o principal objeto a ser passado para \code{FitBoostTreeModel()}.
-\item \code{bestScore}: escalar numérico com o melhor PR-AUC médio de validação cruzada. Valores maiores indicam melhor desempenho no objetivo otimizado.
-\item \code{bestThreshold}: lista com \code{threshold}, \code{metric} e \code{score}, calculada a partir de probabilidades out-of-fold após a escolha dos hiperparâmetros. O \code{threshold} também é copiado para \code{bestHyperparameters$threshold}.
-\item \code{initial}: tibble de warm-start com colunas dos hiperparâmetros ativos e \code{Value}. Pode combinar histórico fornecido em \code{initial} com avaliações novas, deduplicando candidatos repetidos e mantendo o melhor \code{Value}. Pode ser reutilizado em chamada posterior de \code{TuneBoostTree()}.
-\item \code{evaluationLog}: tibble de auditoria da execução atual. Cada linha contém um candidato avaliado, o PR-AUC de validação cruzada em \code{Value} e \code{bestIteration}, que registra a rodada efetiva selecionada por \code{early stopping} para aquele candidato.
-\item \code{config}: lista com as configurações resolvidas usadas na execução: \code{engine}, \code{boost}, \code{searchSpace}, \code{cv}, \code{optimizer}, \code{imbalance}, \code{performance}, \code{control} e \code{parallel}.
-}}
-\description{Função principal recomendada do pacote. Executa tuning de hiperparâmetros para boosted trees binárias com otimização Bayesiana, validação cruzada estratificada, \code{early stopping}, tratamento opcional de desbalanceamento e engines XGBoost ou LightGBM. O nome histórico \code{TuneBoostTreeBayesian()} permanece como alias de compatibilidade.}
-\details{A classe positiva é selecionada de forma determinística a partir do fator de resposta: o nível mais raro é positivo; em empate, o primeiro nível em \code{levels(target)} é positivo. A ordenação das classes é armazenada no resultado como \code{c(negative, positive)}.}
+\value{Objeto de classe \code{tbtb_tune_result}, uma lista com \code{bestHyperparameters}, \code{bestScore}, \code{bestThreshold}, \code{initial}, \code{evaluationLog} e \code{config}. \code{bestHyperparameters} é o objeto principal para \code{FitBoostTreeModel()}; inclui parâmetros tunados, parâmetros fixos relevantes, \code{trees} escolhido por early stopping, \code{stop_iter}, \code{eval_metric}, \code{scale_pos_weight} quando aplicável e \code{threshold}.}
+\description{Função principal do pacote. Executa tuning de boosted trees para classificação binária com validação cruzada estratificada, \code{early stopping}, otimização Bayesiana, tratamento opcional de desbalanceamento e engines XGBoost ou LightGBM.}
+\details{A classe positiva é definida de forma determinística: o nível menos frequente da resposta é tratado como positivo; em caso de empate, o primeiro nível em \code{levels(response)} é usado como positivo. Folds são estratificados e a classe minoritária pode reduzir automaticamente o número efetivo de folds para manter as duas classes nas validações. O pacote calcula PR-AUC fora da engine para selecionar hiperparâmetros e otimiza um threshold de F1 com probabilidades out-of-fold após a escolha do melhor candidato.}

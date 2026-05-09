@@ -4,6 +4,6 @@
 \alias{TuneBoostTreeImbalance}
 \title{Montar configuração de desbalanceamento de classes}
 \usage{TuneBoostTreeImbalance(balanceFn = NULL, scale_pos_weight = "auto", ...)}
-\arguments{\item{balanceFn}{\code{NULL} ou função chamada como \code{balanceFn(data, formula, ...)} em cada treino de fold. Deve retornar data.frame, tibble ou data.table com resposta e preditores da fórmula; pode alterar o número de linhas.}\item{scale_pos_weight}{\code{"auto"}, \code{NULL} ou número positivo. \code{"auto"} calcula negativos/positivos no treino do fold; \code{NULL} desativa; número fixa o peso.}\item{...}{Argumentos nomeados repassados somente a \code{balanceFn}, não às engines nem ao otimizador.}}
-\value{Lista de classe \code{tbtb_imbalance}.}
-\description{Configura balanceamento físico opcional por fold e ponderação da classe positiva.}
+\arguments{\item{balanceFn}{\code{NULL} ou função chamada como \code{balanceFn(data, formula, ...)} uma vez para o treino de cada fold. Deve retornar data.frame, tibble ou data.table com a resposta e todos os preditores da fórmula. Pode alterar o número de linhas para oversampling, undersampling ou geração sintética.}\item{scale_pos_weight}{\code{"auto"}, \code{NULL} ou número positivo. \code{"auto"} calcula negativos/positivos no treino do fold após eventual balanceamento; \code{NULL} desativa; número fixa o mesmo peso em todos os folds e no ajuste final.}\item{...}{Argumentos nomeados extras repassados exclusivamente para \code{balanceFn}; não são enviados às engines, métrica ou otimizador.}}
+\value{Lista validada com classe \code{tbtb_imbalance}, contendo \code{balanceFn}, \code{scale_pos_weight} e \code{balance_args}.}
+\description{Configura balanceamento físico opcional por fold e ponderação da classe positiva sem alterar o fold de validação.}

@@ -2,10 +2,8 @@
 % Please edit documentation in R/TuneBoostTreeBayesian.R
 \name{TuneBoostTreeOptimizerRBayesianOptimization}
 \alias{TuneBoostTreeOptimizerRBayesianOptimization}
-\alias{TuneBoostTreeRBayesianOptimization}
 \title{Montar configuração do otimizador rBayesianOptimization}
-\usage{TuneBoostTreeOptimizerRBayesianOptimization(acquisition = c("ucb", "ei", "poi"), kappa = 2.576, eps = 0, fallback = TRUE)
-TuneBoostTreeRBayesianOptimization(acquisition = c("ucb", "ei", "poi"), kappa = 2.576, eps = 0, fallback = TRUE)}
-\arguments{\item{acquisition}{\code{"ucb"}, \code{"ei"} ou \code{"poi"}. UCB equilibra predição e incerteza; EI maximiza ganho esperado; POI maximiza probabilidade de melhoria.}\item{kappa}{Número finito usado por UCB; maior explora mais regiões incertas.}\item{eps}{Número finito usado por EI/POI como margem mínima de melhoria.}\item{fallback}{Lógico. \code{TRUE} permite otimizador interno se o backend externo falhar.}}
-\value{Lista de classe \code{tbtb_optimizer}.}
-\description{Configura \code{rBayesianOptimization::BayesianOptimization()} como backend de tuning.}
+\usage{TuneBoostTreeOptimizerRBayesianOptimization(acquisition = c("ucb", "ei", "poi"), kappa = 2.576, eps = 0, fallback = TRUE)}
+\arguments{\item{acquisition}{Texto com uma das opções \code{"ucb"}, \code{"ei"} ou \code{"poi"}. UCB combina valor previsto e incerteza; EI prioriza ganho esperado; POI prioriza probabilidade de superar o melhor score.}\item{kappa}{Número finito usado por \code{acquisition = "ucb"}; valores maiores aumentam exploração.}\item{eps}{Número finito usado por EI e POI como margem mínima de melhoria.}\item{fallback}{Lógico escalar. \code{TRUE} permite usar o otimizador interno se \code{rBayesianOptimization} não estiver disponível ou falhar; \code{FALSE} torna o backend obrigatório.}}
+\value{Lista validada com classe \code{tbtb_optimizer}, contendo \code{type = "rBayesianOptimization"}, \code{command}, \code{fallback}, \code{acquisition}, \code{kappa} e \code{eps}.}
+\description{Configura \code{rBayesianOptimization::BayesianOptimization()} como backend de tuning de \code{TuneBoostTree()}.}

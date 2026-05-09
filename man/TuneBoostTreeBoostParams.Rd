@@ -3,17 +3,30 @@
 \name{TuneBoostTreeBoostParams}
 \alias{TuneBoostTreeBoostParams}
 \title{Montar parâmetros fixos de boosted trees}
-\usage{TuneBoostTreeBoostParams(trees = 500L, stop_iter = 20L, learn_rate = NULL, tree_depth = NULL, min_n = NULL, loss_reduction = NULL, sample_size = NULL, mtry = "default", max_bin = NULL)}
-\arguments{
-\item{trees}{Inteiro positivo. Teto de árvores/rodadas avaliado por fold; o valor final pode ser menor por \code{early stopping}.}
-\item{stop_iter}{Inteiro positivo. Paciência do \code{early stopping}; valores maiores dão mais margem e custam mais.}
-\item{learn_rate}{\code{NULL} ou número em \code{(0, 1]}. Taxa de aprendizado; \code{NULL} permite tuning se existir no espaço de busca.}
-\item{tree_depth}{\code{NULL} ou inteiro positivo. Profundidade máxima fixa.}
-\item{min_n}{\code{NULL} ou número positivo. Tamanho/peso mínimo de nó/folha em nomenclatura parsnip.}
-\item{loss_reduction}{\code{NULL} ou número não negativo. Ganho mínimo para split.}
-\item{sample_size}{\code{NULL} ou número em \code{(0, 1]}. Fração de linhas por iteração.}
-\item{mtry}{\code{"default"}, \code{NULL} ou número em \code{(0, 1]}. \code{"default"} fixa 80\% das features; número fixa outra fração; \code{NULL} permite tuning se houver limites.}
-\item{max_bin}{\code{NULL} ou inteiro positivo. Número de bins histogram-based.}
+\usage{
+TuneBoostTreeBoostParams(
+  trees = 500L,
+  stop_iter = 20L,
+  learn_rate = NULL,
+  tree_depth = NULL,
+  min_n = NULL,
+  loss_reduction = NULL,
+  sample_size = NULL,
+  mtry = "default",
+  max_bin = NULL
+)
 }
-\value{Lista validada de classe \code{tbtb_boost_params}.}
-\description{Constrói o bloco \code{boost} de \code{TuneBoostTree()}, usando nomes compatíveis com \code{parsnip::boost_tree()} sempre que possível.}
+\arguments{
+\item{trees}{Inteiro positivo. Número máximo de rodadas/árvores avaliadas em cada treino de validação cruzada. É um limite superior de custo: valores maiores permitem que o \code{early stopping} encontre modelos mais longos, mas aumentam tempo e memória. O modelo final normalmente usa menos rodadas, copiadas para \code{bestHyperparameters$trees}.}
+\item{stop_iter}{Inteiro positivo. Paciência do \code{early stopping}, isto é, o número de rodadas sem melhora na métrica nativa da engine antes de parar o fold. Valores pequenos economizam tempo, mas podem parar cedo demais; valores grandes reduzem esse risco e aumentam o custo.}
+\item{learn_rate}{\code{NULL} ou escalar numérico em \code{(0, 1]}. Taxa de aprendizado fixa. Valores menores tornam cada árvore mais conservadora e geralmente exigem mais \code{trees}; valores maiores aceleram o ajuste e aumentam risco de sobreajuste. Use \code{NULL} para permitir otimização via \code{searchSpace}.}
+\item{tree_depth}{\code{NULL} ou inteiro positivo. Profundidade máxima fixa das árvores. Profundidades maiores capturam interações mais complexas; valores menores regularizam e reduzem custo. Use \code{NULL} para otimizar.}
+\item{min_n}{\code{NULL} ou número positivo. Tamanho/peso mínimo do nó ou folha na nomenclatura parsnip. Valores maiores tornam splits mais conservadores e são úteis contra sobreajuste em dados ruidosos. Use \code{NULL} para otimizar.}
+\item{loss_reduction}{\code{NULL} ou número não negativo. Ganho/redução mínima de perda exigida para criar um split. Aumentar esse valor simplifica as árvores e pode melhorar generalização. Use \code{NULL} para otimizar.}
+\item{sample_size}{\code{NULL} ou número em \code{(0, 1]}. Fração de linhas usada por iteração. \code{1} usa todas as linhas; valores menores introduzem amostragem estocástica, reduzem custo por árvore e podem atuar como regularização. Use \code{NULL} para otimizar.}
+\item{mtry}{\code{"default"}, \code{NULL} ou número em \code{(0, 1]}. Fração de features considerada por split/nó. \code{"default"} fixa \code{0.8}, uma escolha segura para iniciar; um número fixa outra fração; \code{NULL} permite otimizar quando \code{mtry} estiver em \code{searchSpace}.}
+\item{max_bin}{\code{NULL} ou inteiro positivo. Número de bins para engines histogram-based. Valores maiores preservam mais detalhe de variáveis contínuas e podem aumentar memória/tempo; valores menores aceleram e podem regularizar. Use \code{NULL} para manter o padrão interno/otimizar quando houver limite correspondente.}
+}
+\value{Lista validada com classe \code{tbtb_boost_params}, contendo \code{trees}, \code{stop_iter}, \code{learn_rate}, \code{tree_depth}, \code{min_n}, \code{loss_reduction}, \code{sample_size}, \code{mtry} e \code{max_bin}.}
+\description{Constrói o bloco \code{boost} consumido pelo argumento \code{boost} de \code{TuneBoostTree()}. Este bloco define o que fica fixo no treinamento e também guarda o teto de árvores e a paciência de \code{early stopping}.}
+\details{Há uma separação intencional entre \code{boost} e \code{searchSpace}: valores diferentes de \code{NULL} neste objeto são escolhas fixas e prevalecem sobre limites com o mesmo nome em \code{TuneBoostTreeSearchSpace()}; valores \code{NULL} deixam o parâmetro livre para ser otimizado somente quando o mesmo nome existir em \code{searchSpace}; \code{trees} e \code{stop_iter} não são otimizados diretamente. No ajuste, nomes canônicos são traduzidos para parâmetros nativos: \code{learn_rate} vira \code{eta}/\code{learning_rate}, \code{tree_depth} vira \code{max_depth}, \code{min_n} vira \code{min_child_weight}/\code{min_sum_hessian_in_leaf}, \code{loss_reduction} vira \code{gamma}/\code{min_gain_to_split}, \code{sample_size} vira \code{subsample}/\code{bagging_fraction}, \code{mtry} controla fração de colunas por nó/split e \code{max_bin} controla discretização histogram-based.}

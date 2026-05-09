@@ -4,6 +4,6 @@
 \alias{TuneBoostTreeParallel}
 \title{Montar configuração explícita de paralelismo}
 \usage{TuneBoostTreeParallel(workers = "auto", threads_per_worker = "auto", strategy = c("auto", "folds", "engine", "sequential"))}
-\arguments{\item{workers}{Inteiro positivo ou \code{"auto"}. Folds simultâneos.}\item{threads_per_worker}{Inteiro positivo ou \code{"auto"}. Threads por engine em cada worker.}\item{strategy}{\code{"auto"}, \code{"folds"}, \code{"engine"} ou \code{"sequential"}; define a preferência de alocação.}}
-\value{Lista de classe \code{tbtb_parallel}.}
-\description{Divide recursos entre paralelismo por folds e threads internas da engine.}
+\arguments{\item{workers}{Inteiro positivo ou \code{"auto"}. Número de folds avaliados simultaneamente. Valores acima do número efetivo de folds são limitados automaticamente.}\item{threads_per_worker}{Inteiro positivo ou \code{"auto"}. Número de threads XGBoost/LightGBM por worker. O pacote ajusta esse valor se \code{workers * threads_per_worker} exceder o orçamento de CPU detectado.}\item{strategy}{Uma de \code{"auto"}, \code{"folds"}, \code{"engine"} ou \code{"sequential"}. \code{"folds"} prioriza folds simultâneos; \code{"engine"} prioriza uma engine com mais threads; \code{"sequential"} desativa paralelismo entre folds.}}
+\value{Lista validada com classe \code{tbtb_parallel}, contendo \code{workers}, \code{threads_per_worker} e \code{strategy}.}
+\description{Descreve como \code{TuneBoostTree()} divide CPU entre folds avaliados em paralelo e threads internas da engine.}

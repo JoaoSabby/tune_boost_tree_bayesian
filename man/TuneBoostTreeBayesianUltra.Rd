@@ -4,6 +4,6 @@
 \alias{TuneBoostTreeBayesianUltra}
 \title{Executar tuning ultraotimizado de boosted trees}
 \usage{TuneBoostTreeBayesianUltra(formula, data, initial = 20L, nIter = 60L, engine = "lightgbm", command = NULL, strict_limbo = TRUE)}
-\arguments{\item{formula, data, initial, nIter, engine}{Argumentos repassados a \code{TuneBoostTree()}.}\item{command, strict_limbo}{Argumentos repassados a \code{TuneBoostTreeUltraConfig()}.}}
+\arguments{\item{formula}{Fórmula de duas faces para classificação binária, repassada a \code{TuneBoostTree()}.}\item{data}{data.frame, tibble ou data.table de treino, repassado a \code{TuneBoostTree()}.}\item{initial}{Warm-start ou número de pontos iniciais, repassado a \code{TuneBoostTree()}.}\item{nIter}{Número de iterações do otimizador após a inicialização.}\item{engine}{\code{"xgboost"}, \code{"lightgbm"} ou bloco criado por \code{TuneBoostTreeXgboost()} / \code{TuneBoostTreeLightgbm()}.}\item{command}{Caminho/comando do executável Limbo, repassado a \code{TuneBoostTreeUltraConfig()}.}\item{strict_limbo}{Lógico escalar. \code{TRUE} exige Limbo funcional; \code{FALSE} permite fallback interno.}}
 \value{Objeto \code{tbtb_tune_result}, mesmo retorno de \code{TuneBoostTree()}.}
-\description{Atalho que monta \code{TuneBoostTreeUltraConfig()} e executa \code{TuneBoostTree()}.}
+\description{Atalho que monta \code{TuneBoostTreeUltraConfig()} e executa \code{TuneBoostTree()} com esse perfil.}
