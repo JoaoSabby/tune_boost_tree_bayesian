@@ -18,7 +18,8 @@ Options:
   --adapter-command PATH   Path to the tbtb-limbo-ask executable to expose through TBTB_LIMBO_COMMAND
                            (default: PREFIX/bin/tbtb-limbo-ask)
   --timeout SECONDS        TBTB_LIMBO_TIMEOUT value (default: 600)
-  --no-system-deps         Do not install OS packages with apt-get
+  --no-system-deps         Do not install OS packages with apt-get, dnf, or yum
+  --no-reference-adapter   Do not install the packaged tbtb-limbo-ask reference adapter
   --no-profile             Do not update ~/.profile with shell exports
   --no-renviron            Do not update ~/.Renviron for R sessions
   --dry-run                Print commands/edits without running them
@@ -100,44 +101,81 @@ append_or_replace_kv() {
 ## Fim
 #
 
-install_apt_deps() {
+install_system_deps() {
 
-  # Objetivo: instalar apenas dependências mínimas de compilação quando a plataforma suportar apt-get.
+  # Objetivo: instalar apenas dependências mínimas de compilação quando a plataforma suportar apt-get, dnf ou yum.
   if [[ "${INSTALL_SYSTEM_DEPS}" != "1" ]]; then
     log "Skipping OS dependency installation (--no-system-deps)."
-    return 0
-  fi
-
-  if ! command -v apt-get >/dev/null 2>&1; then
-    warn "apt-get not found; install Limbo dependencies manually for your OS."
     return 0
   fi
 
   local sudo_cmd=()
   if [[ "$(id -u)" -ne 0 ]]; then
     if ! command -v sudo >/dev/null 2>&1; then
-      warn "sudo not found; skipping apt-get dependency installation."
+      warn "sudo not found; skipping OS dependency installation."
       return 0
     fi
     sudo_cmd=(sudo)
   fi
 
-  log "Installing Limbo build dependencies with apt-get."
-  run "${sudo_cmd[@]}" apt-get update
-  run "${sudo_cmd[@]}" apt-get install -y \
-    build-essential \
-    ca-certificates \
-    git \
-    python3 \
-    pkg-config \
-    libeigen3-dev \
-    libboost-filesystem-dev \
-    libboost-program-options-dev \
-    libboost-serialization-dev \
-    libboost-system-dev \
-    libboost-test-dev \
-    libboost-thread-dev \
-    libtbb-dev
+  if command -v dnf >/dev/null 2>&1; then
+    log "Installing Limbo build dependencies with dnf."
+    run "${sudo_cmd[@]}" dnf -y install dnf-plugins-core || warn "Could not install dnf-plugins-core; continuing with enabled repositories."
+    run "${sudo_cmd[@]}" dnf config-manager --set-enabled ol9_codeready_builder || warn "Could not enable ol9_codeready_builder; continuing with enabled repositories."
+    run "${sudo_cmd[@]}" dnf -y install oracle-epel-release-el9 || warn "Could not install oracle-epel-release-el9; continuing with enabled repositories."
+    run "${sudo_cmd[@]}" dnf -y install \
+      gcc \
+      gcc-c++ \
+      make \
+      cmake \
+      ca-certificates \
+      git \
+      python3 \
+      pkgconf-pkg-config \
+      eigen3-devel \
+      boost-devel \
+      tbb-devel
+    return 0
+  fi
+
+  if command -v yum >/dev/null 2>&1; then
+    log "Installing Limbo build dependencies with yum."
+    run "${sudo_cmd[@]}" yum -y install \
+      gcc \
+      gcc-c++ \
+      make \
+      cmake \
+      ca-certificates \
+      git \
+      python3 \
+      pkgconfig \
+      eigen3-devel \
+      boost-devel \
+      tbb-devel
+    return 0
+  fi
+
+  if command -v apt-get >/dev/null 2>&1; then
+    log "Installing Limbo build dependencies with apt-get."
+    run "${sudo_cmd[@]}" apt-get update
+    run "${sudo_cmd[@]}" apt-get install -y \
+      build-essential \
+      ca-certificates \
+      git \
+      python3 \
+      pkg-config \
+      libeigen3-dev \
+      libboost-filesystem-dev \
+      libboost-program-options-dev \
+      libboost-serialization-dev \
+      libboost-system-dev \
+      libboost-test-dev \
+      libboost-thread-dev \
+      libtbb-dev
+    return 0
+  fi
+
+  warn "No supported OS package manager found; install Limbo dependencies manually for your OS."
 }
 ####
 ## Fim
@@ -184,6 +222,143 @@ build_limbo() {
 ## Fim
 #
 
+write_reference_adapter() {
+
+  # Objetivo: instalar um executável ask/tell compatível para que o bridge Limbo possa ser exercitado após compilar a biblioteca externa.
+  if [[ "${INSTALL_REFERENCE_ADAPTER}" != "1" ]]; then
+    log "Skipping reference ask/tell adapter installation (--no-reference-adapter)."
+    return 0
+  fi
+
+  if [[ "${DRY_RUN}" == "1" ]]; then
+    log "Would install reference ask/tell adapter at ${ADAPTER_COMMAND}."
+    return 0
+  fi
+
+  mkdir -p "$(dirname "${ADAPTER_COMMAND}")"
+  cat > "${ADAPTER_COMMAND}" <<'PY_ADAPTER'
+#!/usr/bin/env python3
+import csv
+import math
+import random
+import sys
+
+VERSION = "tbtb-limbo-ask-reference 0.1.0"
+
+
+def read_csv(path):
+    with open(path, newline="") as handle:
+        return list(csv.DictReader(handle))
+
+
+def finite_float(value, default=None):
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        if default is None:
+            raise
+        return default
+    if not math.isfinite(out):
+        if default is None:
+            raise ValueError(value)
+        return default
+    return out
+
+
+def normalized_distance(candidate, observation, bounds):
+    total = 0.0
+    for spec in bounds:
+        name = spec["parameter"]
+        lower = finite_float(spec["lower"])
+        upper = finite_float(spec["upper"])
+        width = max(upper - lower, sys.float_info.epsilon)
+        total += ((candidate[name] - finite_float(observation[name], lower)) / width) ** 2
+    return math.sqrt(total)
+
+
+def clamp_candidate(candidate, bounds):
+    out = {}
+    for spec in bounds:
+        name = spec["parameter"]
+        lower = finite_float(spec["lower"])
+        upper = finite_float(spec["upper"])
+        value = min(max(float(candidate[name]), lower), upper)
+        if spec.get("type") == "integer":
+            value = int(round(value))
+            value = min(max(value, int(round(lower))), int(round(upper)))
+        out[name] = value
+    return out
+
+
+def propose(bounds, observations, config):
+    seed = int(finite_float(config.get("seed", 42), 42))
+    iteration = int(finite_float(config.get("iteration", 1), 1))
+    rng = random.Random(seed + 1000003 * iteration + 9176 * len(observations))
+    best = None
+    if observations:
+        best = max(observations, key=lambda row: finite_float(row.get("Value"), -math.inf))
+
+    candidate_pool = []
+    pool_size = 512
+    for _ in range(pool_size):
+        raw = {}
+        for spec in bounds:
+            name = spec["parameter"]
+            lower = finite_float(spec["lower"])
+            upper = finite_float(spec["upper"])
+            width = upper - lower
+            if best is not None and rng.random() < 0.65:
+                center = finite_float(best.get(name), (lower + upper) / 2.0)
+                value = rng.gauss(center, width / max(4.0, math.sqrt(iteration + 1.0)))
+            else:
+                value = rng.uniform(lower, upper)
+            raw[name] = value
+        candidate_pool.append(clamp_candidate(raw, bounds))
+
+    if not observations:
+        return candidate_pool[0]
+
+    def score(candidate):
+        min_distance = min(normalized_distance(candidate, row, bounds) for row in observations)
+        return min_distance + 0.01 * rng.random()
+
+    return max(candidate_pool, key=score)
+
+
+def main(argv):
+    if len(argv) == 2 and argv[1] == "--version":
+        print(VERSION)
+        return 0
+    if len(argv) != 5:
+        print("Usage: tbtb-limbo-ask bounds.csv observations.csv config.csv candidate.csv", file=sys.stderr)
+        return 2
+
+    bounds_file, observations_file, config_file, candidate_file = argv[1:5]
+    bounds = read_csv(bounds_file)
+    observations = read_csv(observations_file)
+    config_rows = read_csv(config_file)
+    config = config_rows[0] if config_rows else {}
+    candidate = propose(bounds, observations, config)
+
+    fieldnames = [spec["parameter"] for spec in bounds]
+    with open(candidate_file, "w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerow({name: candidate[name] for name in fieldnames})
+    print("candidate," + ",".join(f"{name}={candidate[name]}" for name in fieldnames))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
+PY_ADAPTER
+  chmod 0755 "${ADAPTER_COMMAND}"
+  log "Installed reference ask/tell adapter at ${ADAPTER_COMMAND}."
+}
+####
+## Fim
+#
+
 write_environment() {
 
   # Objetivo: persistir variáveis usadas pelo bridge ask/tell para que sessões R futuras encontrem o adaptador.
@@ -203,7 +378,7 @@ write_environment() {
     log "Updated ${HOME}/.profile. Reload with: . ~/.profile"
   fi
 
-  if [[ ! -x "${ADAPTER_COMMAND}" ]]; then
+  if [[ "${DRY_RUN}" != "1" && ! -x "${ADAPTER_COMMAND}" ]]; then
     warn "${ADAPTER_COMMAND} is not executable yet. Build or install a tbtb-limbo-ask adapter there, or rerun with --adapter-command PATH."
   fi
 }
@@ -218,6 +393,7 @@ LIMBO_REPO="https://github.com/resibots/limbo.git"
 ADAPTER_COMMAND=""
 TBTB_LIMBO_TIMEOUT_VALUE="600"
 INSTALL_SYSTEM_DEPS="1"
+INSTALL_REFERENCE_ADAPTER="1"
 UPDATE_PROFILE="1"
 UPDATE_RENVIRON="1"
 DRY_RUN="0"
@@ -247,6 +423,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-system-deps)
       INSTALL_SYSTEM_DEPS="0"
+      shift
+      ;;
+    --no-reference-adapter)
+      INSTALL_REFERENCE_ADAPTER="0"
       shift
       ;;
     --no-profile)
@@ -295,9 +475,10 @@ log "Limbo directory: ${LIMBO_DIR}"
 log "TBTB_LIMBO_COMMAND: ${ADAPTER_COMMAND}"
 
 # Objetivo: executar as etapas em ordem determinística para facilitar diagnóstico quando a instalação externa falhar.
-install_apt_deps
+install_system_deps
 clone_or_update_limbo
 build_limbo
+write_reference_adapter
 write_environment
 
 cat <<EOF_DONE
@@ -314,5 +495,7 @@ R check:
   file.access(Sys.getenv("TBTB_LIMBO_COMMAND"), mode = 1)
 
 Remember: TuneBoostTreeBayesian requires TBTB_LIMBO_COMMAND to point to a
-compatible ask/tell executable. Limbo itself is only the C++ optimization library.
+compatible ask/tell executable. By default this installer writes the packaged
+reference adapter to ADAPTER_COMMAND; use --no-reference-adapter if you provide
+your own adapter.
 EOF_DONE
