@@ -581,6 +581,7 @@ TuneBoostTree <- function(formula, data, initial = 10L, nIter = 30L, engine = "l
   imbalance <- TuneBoostTree_ResolveImbalance(imbalance)
   performance <- TuneBoostTree_ResolvePerformance(performance)
   control <- TuneBoostTree_ResolveControl(control)
+  TuneBoostTree_SetPassiveOpenMp()
   initialState <- TuneBoostTree_ResolveInitial(initial, bounds)
   initGridDt <- initialState$initGridDt
   initPoints <- initialState$initPoints
@@ -679,10 +680,7 @@ TuneBoostTree <- function(formula, data, initial = 10L, nIter = 30L, engine = "l
 
 #' @rdname TuneBoostTree
 #' @export
-TuneBoostTreeBayesian <- function(formula, data, initial = 10L, nIter = 30L, engine = "lightgbm", boost = TuneBoostTreeBoostParams(), searchSpace = TuneBoostTreeSearchSpace(), cv = TuneBoostTreeCv(), optimizer = TuneBoostTreeOptimizerRBayesianOptimization(), imbalance = TuneBoostTreeImbalance(), performance = TuneBoostTreePerformance(), control = TuneBoostTreeControl(), ...) {
-
-  TuneBoostTree(formula = formula, data = data, initial = initial, nIter = nIter, engine = engine, boost = boost, searchSpace = searchSpace, cv = cv, optimizer = optimizer, imbalance = imbalance, performance = performance, control = control, ...)
-}
+TuneBoostTreeBayesian <- TuneBoostTree
 ####
 ## Fim
 #
@@ -1301,10 +1299,8 @@ TuneBoostTree_PrepareBalancedFolds <- function(formula, data, nFolds, balanceFn,
 #' @noRd
 TuneBoostTree_RunCvManual <- function(balancedFolds, hyperparameters, nRounds, earlyStoppingRounds, seed, nThreads, nWorkersFolds, evalMetric, engine_boost_tree, prAucBackend = "auto") {
 
-  totalCores <- TuneBoostTree_DetectCpuBudget() # Objetivo: explicitar a intenção desta etapa para facilitar manutenção e auditoria do fluxo de modelagem.
   nWorkers <- min(max(1L, as.integer(nWorkersFolds)), length(balancedFolds)) # Objetivo: manter a validação cruzada reprodutível e estratificada, sem vazamento entre treino e validação.
-  workerThreads <- max(1L, floor(totalCores / nWorkers)) # Objetivo: explicitar a intenção desta etapa para facilitar manutenção e auditoria do fluxo de modelagem.
-  workerThreads <- min(as.integer(nThreads), workerThreads) # Objetivo: limitar o paralelismo para acelerar folds sem exceder o orçamento de CPU disponível.
+  workerThreads <- max(1L, as.integer(nThreads)) # Objetivo: reutilizar o orçamento de threads já resolvido por TuneBoostTree_FinalizeParallel.
   foldIds <- seq_along(balancedFolds) # Objetivo: manter a validação cruzada reprodutível e estratificada, sem vazamento entre treino e validação.
   TuneBoostTree_SetPassiveOpenMp()
   if(nWorkers == 1L){
@@ -1724,9 +1720,8 @@ TuneBoostTree_OptimizeThresholdCv <- function(balancedFolds, hyperparameters, nR
 #' @noRd
 TuneBoostTree_RunCvPredictions <- function(balancedFolds, hyperparameters, nRounds, seed, nThreads, nWorkersFolds, evalMetric, engine_boost_tree) {
 
-  totalCores <- TuneBoostTree_DetectCpuBudget()
   nWorkers <- min(max(1L, as.integer(nWorkersFolds)), length(balancedFolds))
-  workerThreads <- min(as.integer(nThreads), max(1L, floor(totalCores / nWorkers)))
+  workerThreads <- max(1L, as.integer(nThreads))
   foldIds <- seq_along(balancedFolds)
   TuneBoostTree_SetPassiveOpenMp()
   if(nWorkers == 1L){
@@ -2135,7 +2130,9 @@ SplitDataBoostTreeFolds <- function(yData, nFolds = 10L, seed = 42L) {
 #' @param nThreads Inteiro com número de threads da engine.
 #' @param seed Inteiro usado como semente aleatória.
 #' @param verbose Verbosidade da engine.
-#' @param engine_boost_tree Nome da engine, `"xgboost"` ou `"lightgbm"`.
+#' @param engineBoostTree Nome da engine, `"xgboost"` ou `"lightgbm"`.
+#' @param ... Argumentos legados. `engine_boost_tree` ainda é aceito com aviso
+#'   de depreciação e será migrado para `engineBoostTree`.
 #'
 #' @details Ajusta o modelo final com hiperparâmetros canônicos e isola a
 #'   tradução de parâmetros no limite da engine.
@@ -2144,9 +2141,18 @@ SplitDataBoostTreeFolds <- function(yData, nFolds = 10L, seed = 42L) {
 #'   usados em `params`, nomes/tipos de features, níveis e nomes das classes,
 #'   metadados da fórmula, número de rodadas (`nRounds`), `threshold` e `engine`.
 #' @export
-FitBoostTreeModel <- function(formula, dataTrain, hyperparameters, featureTypes = NULL, targetLevels = NULL, scalePosWeight = NULL, nThreads = 8L, seed = 42L, verbose = 0L, engine_boost_tree = "lightgbm") {
+FitBoostTreeModel <- function(formula, dataTrain, hyperparameters, featureTypes = NULL, targetLevels = NULL, scalePosWeight = NULL, nThreads = 8L, seed = 42L, verbose = 0L, engineBoostTree = "lightgbm", ...) {
 
-  if(!(engine_boost_tree %in% c("xgboost", "lightgbm"))) cli::cli_abort("`engine_boost_tree` must be 'xgboost' or 'lightgbm'.") # Objetivo: explicitar a intenção desta etapa para facilitar manutenção e auditoria do fluxo de modelagem.
+  dots <- list(...)
+  if("engine_boost_tree" %in% names(dots)){
+    if(!missing(engineBoostTree)) cli::cli_abort("Use only one of `engineBoostTree` or deprecated `engine_boost_tree`.")
+    cli::cli_warn("`engine_boost_tree` is deprecated; use `engineBoostTree` instead.")
+    engineBoostTree <- dots$engine_boost_tree
+  }
+  unknownDots <- setdiff(names(dots), "engine_boost_tree")
+  if(length(unknownDots) > 0L) cli::cli_abort("Unknown argument(s): {paste(unknownDots, collapse = ', ')}")
+  engine_boost_tree <- engineBoostTree
+  if(!(engine_boost_tree %in% c("xgboost", "lightgbm"))) cli::cli_abort("`engineBoostTree` must be 'xgboost' or 'lightgbm'.") # Objetivo: explicitar a intenção desta etapa para facilitar manutenção e auditoria do fluxo de modelagem.
   preparedTrain <- TuneBoostTree_PrepareMatrix(formula, dataTrain, featureTypes, targetLevels, NULL) # Objetivo: preservar a semântica das classes para que treino, validação e predição usem a mesma referência binária.
   classCounts <- table(preparedTrain$yData) # Objetivo: ajustar o peso da classe positiva de acordo com a distribuição realmente usada no treino.
   if(length(classCounts) != 2L || any(classCounts == 0L)) cli::cli_abort("`dataTrain` must contain both binary classes.") # Objetivo: ajustar o peso da classe positiva de acordo com a distribuição realmente usada no treino.
@@ -2174,8 +2180,10 @@ FitBoostTreeModel <- function(formula, dataTrain, hyperparameters, featureTypes 
 #' @param newdata Novo data.frame contendo todas as colunas preditoras.
 #' @param threshold Limiar de probabilidade da classe positiva. Quando `NULL`,
 #'   usa `modelObj$threshold` se existir; caso contrário, usa `0.5`.
-#' @param engine_boost_tree Sobrescrita opcional da engine; por padrão usa
+#' @param engineBoostTree Sobrescrita opcional da engine; por padrão usa
 #'   `modelObj$engine`.
+#' @param ... Argumentos legados. `engine_boost_tree` ainda é aceito com aviso
+#'   de depreciação e será migrado para `engineBoostTree`.
 #'
 #' @details Despacha a predição conforme a engine armazenada e retorna classes
 #'   preditas e probabilidades das duas classes.
@@ -2184,13 +2192,21 @@ FitBoostTreeModel <- function(formula, dataTrain, hyperparameters, featureTypes 
 #'   `probabilitySecondClass`. A segunda probabilidade corresponde à classe
 #'   positiva armazenada no modelo.
 #' @export
-PredictBoostTreeModel <- function(modelObj, newdata, threshold = NULL, engine_boost_tree = NULL) {
+PredictBoostTreeModel <- function(modelObj, newdata, threshold = NULL, engineBoostTree = NULL, ...) {
 
+  dots <- list(...)
+  if("engine_boost_tree" %in% names(dots)){
+    if(!is.null(engineBoostTree)) cli::cli_abort("Use only one of `engineBoostTree` or deprecated `engine_boost_tree`.")
+    cli::cli_warn("`engine_boost_tree` is deprecated; use `engineBoostTree` instead.")
+    engineBoostTree <- dots$engine_boost_tree
+  }
+  unknownDots <- setdiff(names(dots), "engine_boost_tree")
+  if(length(unknownDots) > 0L) cli::cli_abort("Unknown argument(s): {paste(unknownDots, collapse = ', ')}")
   if(!is.data.frame(newdata) || nrow(newdata) == 0L) cli::cli_abort("`newdata` must be a non-empty data.frame.") # Objetivo: explicitar a intenção desta etapa para facilitar manutenção e auditoria do fluxo de modelagem.
   if(is.null(threshold)) threshold <- if(!is.null(modelObj$threshold)) modelObj$threshold else 0.5 # Objetivo: aplicar a mesma regra de decisão binária usada na seleção do modelo e nas métricas finais.
   threshold <- as.numeric(threshold) # Objetivo: aplicar a mesma regra de decisão binária usada na seleção do modelo e nas métricas finais.
   if(length(threshold) != 1L || is.na(threshold) || threshold <= 0 || threshold >= 1) cli::cli_abort("`threshold` must be between 0 and 1.") # Objetivo: aplicar a mesma regra de decisão binária usada na seleção do modelo e nas métricas finais.
-  engine <- if(is.null(engine_boost_tree)) modelObj$engine else engine_boost_tree # Objetivo: explicitar a intenção desta etapa para facilitar manutenção e auditoria do fluxo de modelagem.
+  engine <- if(is.null(engineBoostTree)) modelObj$engine else engineBoostTree # Objetivo: explicitar a intenção desta etapa para facilitar manutenção e auditoria do fluxo de modelagem.
   if(!(engine %in% c("xgboost", "lightgbm"))) cli::cli_abort("Model engine must be 'xgboost' or 'lightgbm'.") # Objetivo: explicitar a intenção desta etapa para facilitar manutenção e auditoria do fluxo de modelagem.
   featureNames <- modelObj$featureNames # Objetivo: garantir alinhamento explícito das features e falhar cedo quando a base de predição estiver incompleta.
   missingFeatureNames <- setdiff(featureNames, names(newdata)) # Objetivo: garantir alinhamento explícito das features e falhar cedo quando a base de predição estiver incompleta.

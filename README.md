@@ -275,7 +275,7 @@ Consulte `CHECKLIST.md` para o checklist completo de revisão de implementação
 As funções públicas `FitBoostTreeModel()`, `PredictBoostTreeModel()` e `SplitDataBoostTreeFolds()` são exportadas no pacote e podem ser chamadas diretamente após `library(TuneBoostTreeBayesian)`. O fluxo recomendado é:
 
 1. usar `TuneBoostTree()` para encontrar hiperparâmetros;
-2. treinar o modelo final com `FitBoostTreeModel()` usando `resultado$bestHyperparameters` — por padrão em LightGBM, ou com `engine_boost_tree = "xgboost"` para a alternativa;
+2. treinar o modelo final com `FitBoostTreeModel()` usando `resultado$bestHyperparameters` — por padrão em LightGBM, ou com `engineBoostTree = "xgboost"` para a alternativa;
 3. gerar predições com `PredictBoostTreeModel()`;
 4. calcular métricas externas, por exemplo com `yardstick`.
 
@@ -289,6 +289,25 @@ Para criar um artefato de instalação local no servidor dedicado:
 R CMD build .
 R CMD INSTALL TuneBoostTreeBayesian_*.tar.gz
 ```
+
+
+### Otimizações nativas opcionais para HPC
+
+O arquivo `src/Makevars` aceita a variável `TBTB_OPT_FLAGS` para que instalações locais em servidores dedicados ativem flags do compilador sem tornar builds CRAN/CI ou binários não portáteis. Em um Intel Xeon Platinum 8260 ou host HPC equivalente, defina as flags no ambiente da instalação ou em `~/.R/Makevars` antes de reinstalar o pacote a partir do código-fonte.
+
+Exemplo em `~/.R/Makevars`:
+
+```makefile
+TBTB_OPT_FLAGS = -O3 -march=native -funroll-loops -ffast-math
+```
+
+Depois reinstale com limpeza dos objetos nativos antigos:
+
+```bash
+R CMD INSTALL --preclean TuneBoostTreeBayesian_*.tar.gz
+```
+
+Use `-march=native` apenas em builds locais destinados ao mesmo tipo de CPU. Para artefatos redistribuíveis, mantenha `TBTB_OPT_FLAGS` vazio ou use apenas flags portáteis.
 
 Para verificar o pacote antes de distribuir internamente:
 
@@ -354,7 +373,7 @@ modelo <- FitBoostTreeModel(
   train_data,
   resultado$bestHyperparameters,
   nThreads = 1L,
-  engine_boost_tree = "lightgbm"
+  engineBoostTree = "lightgbm"
 )
 
 pred <- PredictBoostTreeModel(modelo, test_data)
@@ -418,7 +437,7 @@ modelo_xgb <- FitBoostTreeModel(
   train_data,
   resultado_xgb_limbo$bestHyperparameters,
   nThreads = 1L,
-  engine_boost_tree = "xgboost"
+  engineBoostTree = "xgboost"
 )
 ```
 

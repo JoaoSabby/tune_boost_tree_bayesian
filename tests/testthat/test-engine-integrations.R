@@ -91,7 +91,7 @@ TuneBoostTree_RunEngineIntegration <- function(engineName, backendName) {
     dataTrain = dataSplit$train,
     hyperparameters = tuned$bestHyperparameters,
     nThreads = 1L,
-    engine_boost_tree = engineName
+    engineBoostTree = engineName
   )
   predictions <- PredictBoostTreeModel(model, dataSplit$test)
   metrics <- TuneBoostTree_TestMetrics(model, dataSplit$test)
