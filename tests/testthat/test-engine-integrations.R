@@ -22,9 +22,9 @@ TuneBoostTree_TestFakeLimbo <- function() {
 }
 
 TuneBoostTree_TestOptimizer <- function(backend) {
-  if (identical(backend, "limbo")) return(TuneBoostTreeLimbo(command = TuneBoostTree_TestFakeLimbo(), fallback = FALSE))
+  if (identical(backend, "limbo")) return(TuneBoostTreeOptimizerLimbo(command = TuneBoostTree_TestFakeLimbo(), fallback = FALSE))
   skip_if_not_installed("rBayesianOptimization")
-  TuneBoostTreeRBayesianOptimization(acquisition = "ucb", kappa = 2.576, eps = 0)
+  TuneBoostTreeOptimizerRBayesianOptimization(acquisition = "ucb", kappa = 2.576, eps = 0)
 }
 
 TuneBoostTree_TestMetrics <- function(model, testData) {
@@ -51,14 +51,14 @@ TuneBoostTree_RunEngineIntegration <- function(engineName, backendName) {
   if (identical(engineName, "lightgbm")) skip_if_not_installed("lightgbm")
   dataSplit <- TuneBoostTree_TestBinaryData()
   optimizer <- TuneBoostTree_TestOptimizer(backendName)
-  tuned <- TuneBoostTreeBayesian(
+  tuned <- TuneBoostTree(
     Class ~ A + B,
     data = dataSplit$train,
     initial = 2L,
     nIter = 1L,
     engine = engineName,
     boost = TuneBoostTreeBoostParams(trees = 12L, stop_iter = 3L, mtry = 1, max_bin = 64L),
-    search_space = TuneBoostTreeSearchSpace(
+    searchSpace = TuneBoostTreeSearchSpace(
       learn_rate = c(0.03, 0.12),
       tree_depth = c(2L, 4L),
       min_n = c(1L, 12L),

@@ -19,3 +19,6 @@ export(TuneBoostTreeUltraConfig)
 export(TuneBoostTreeXgboost)
 
 export(TuneBoostTreeBayesianUltra)
+export(TuneBoostTree)
+export(TuneBoostTreeOptimizerLimbo)
+export(TuneBoostTreeOptimizerRBayesianOptimization)
