@@ -953,10 +953,14 @@ TuneBoostTree <- function(
   prAucBackend <- TuneBoostTree_SelectPrAucBackend(performance$backend)
   engineConfig <- engine
   engine <- engineConfig$name
+  if(identical(engine, "lightgbm") && nWorkersFolds > 1L){
+    workerThreads <- max(1L, as.integer(workerThreads) * as.integer(nWorkersFolds))
+    nWorkersFolds <- 1L
+  }
   if(engine == "xgboost"){
     evalMetric <- engineConfig$eval_metric
   } else {
-    evalMetric <- "average_precision"
+    evalMetric <- engineConfig$metric
   }
   featureTypes <- engineConfig$feature_types
 
@@ -1865,17 +1869,78 @@ TuneBoostTree_CreateDataObject <- function(
 #' @noRd
 TuneBoostTree_CreateStratifiedFolds <- function(yData, nFolds = 10L, seed = 42L) {
 
+  if(length(yData) == 0L || anyNA(yData)){
+    cli::cli_abort("`yData` must be a non-empty binary vector encoded as 0/1 or FALSE/TRUE.")
+  }
+  if(is.logical(yData)){
+    yData <- as.integer(yData)
+  } else if(is.numeric(yData) && all(yData %in% c(0, 1))){
+    yData <- as.integer(yData)
+  } else {
+    cli::cli_abort("`yData` must be a non-empty binary vector encoded as 0/1 or FALSE/TRUE.")
+  }
+
+  nFolds <- as.integer(nFolds)
+
+  if(length(nFolds) != 1L || is.na(nFolds) || nFolds < 2L){
+    cli::cli_abort("`nFolds` must be a single integer greater than or equal to 2.")
+  }
+
+  classCounts <- table(yData)
+  if(length(classCounts) != 2L || any(classCounts == 0L)){
+    cli::cli_abort("`yData` must contain both binary classes.")
+  }
+  if(any(classCounts < nFolds)){
+    cli::cli_abort("Each binary class must contain at least `nFolds` observations for stratified folds.")
+  }
+
+  if(exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)){
+    oldSeed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  } else {
+    oldSeed <- NULL
+  }
+  on.exit({
+    if(is.null(oldSeed)){
+      if(exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)){
+        rm(".Random.seed", envir = .GlobalEnv)
+      }
+    } else {
+      assign(".Random.seed", oldSeed, envir = .GlobalEnv)
+    }
+  }, add = TRUE)
+
   set.seed(seed)
-  negativeIndex <- sample(which(as.integer(yData) == 0L))
-  positiveIndex <- sample(which(as.integer(yData) == 1L))
-  folds <- vector("list", as.integer(nFolds))
-  for(foldId in seq_len(as.integer(nFolds))){
+  negativeIndex <- sample(which(yData == 0L))
+  positiveIndex <- sample(which(yData == 1L))
+  folds <- vector("list", nFolds)
+  for(foldId in seq_len(nFolds)){
     folds[[foldId]] <- c(
       negativeIndex[seq(foldId, length(negativeIndex), by = nFolds)],
       positiveIndex[seq(foldId, length(positiveIndex), by = nFolds)]
     )
   }
   folds
+}
+####
+## Fim
+#
+
+#' Dividir dados em folds estratificados para boost-tree
+#'
+#' @param yData Vetor binário inteiro ou lógico da variável resposta.
+#' @param nFolds Inteiro com número de folds.
+#' @param seed Inteiro usado como semente aleatória.
+#'
+#' @description
+#' Cria folds estratificados para dados binários 0/1, usando a mesma lógica de
+#' estratificação do tuner.
+#'
+#' @return Lista de vetores inteiros. Cada elemento contém os índices de teste de
+#'   um fold; os índices de treino são obtidos pelo complemento.
+#' @export
+SplitDataBoostTreeFolds <- function(yData, nFolds = 10L, seed = 42L) {
+
+  TuneBoostTree_CreateStratifiedFolds(yData = yData, nFolds = nFolds, seed = seed)
 }
 ####
 ## Fim
@@ -2027,10 +2092,14 @@ TuneBoostTree_BuildParams <- function(
     }
     return(params)
   }
+  lightgbmMetric <- as.character(evalMetric)[1L]
+  if(identical(lightgbmMetric, "aucpr")){
+    lightgbmMetric <- "average_precision"
+  }
   params <- list(
     objective = "binary",
     boosting = "gbdt",
-    metric = "average_precision",
+    metric = lightgbmMetric,
     max_bin = maxBinValue,
     max_depth = treeDepthValue,
     learning_rate = learnRateValue,
@@ -2184,18 +2253,23 @@ TuneBoostTree_RunCvManual <- function(
 
   nWorkers <- min(max(1L, as.integer(nWorkersFolds)), length(balancedFolds))
   workerThreads <- max(1L, as.integer(nThreads))
+  if(identical(engine, "lightgbm") && nWorkers > 1L){
+    nWorkers <- 1L
+    workerThreads <- max(1L, as.integer(nThreads) * max(1L, as.integer(nWorkersFolds)))
+  }
   foldIds <- seq_along(balancedFolds)
   TuneBoostTree_SetPassiveOpenMp()
   if(nWorkers == 1L){
     foldResults <- vector("list", length(foldIds))
 
     for(i in foldIds){
-      foldResults[[i]] <- TuneBoostTree_RunOneFold(
-        foldData = balancedFolds[[i]],
+      foldResults[[i]] <- TuneBoostTree_RunFoldById(
+        foldId = i,
+        balancedFolds = balancedFolds,
         hyperparameters = hyperparameters,
         nRounds = nRounds,
         earlyStoppingRounds = earlyStoppingRounds,
-        seed = seed + i,
+        seed = seed,
         nThreads = workerThreads,
         evalMetric = evalMetric,
         engine = engine,
@@ -2241,7 +2315,22 @@ TuneBoostTree_RunCvManual <- function(
 
   if(any(invalidFold)){
     failedFolds <- paste(foldIds[invalidFold], collapse = ", ")
-    cli::cli_abort("Validation fold(s) failed before returning a score: {failedFolds}.")
+    foldMessages <- vapply(
+      foldResults[invalidFold],
+      function(foldResult) {
+        if(is.list(foldResult) && !is.null(foldResult$errorMessage)){
+          return(as.character(foldResult$errorMessage)[1L])
+        }
+        if(inherits(foldResult, "try-error") || inherits(foldResult, "error")){
+          return(as.character(foldResult)[1L])
+        }
+        "Unknown fold failure."
+      },
+      character(1L)
+    )
+    foldMessages <- unique(foldMessages[nzchar(foldMessages)])
+    detail <- paste(utils::head(foldMessages, 3L), collapse = " | ")
+    cli::cli_abort("Validation fold(s) failed before returning a score: {failedFolds}. First error(s): {detail}")
   }
 
   foldScores <- vapply(foldResults, `[[`, numeric(1L), "score")
@@ -2277,7 +2366,16 @@ TuneBoostTree_IsInvalidFoldResult <- function(foldResult) {
   }
 
   missingNames <- setdiff(c("score", "bestIteration"), names(foldResult))
-  length(missingNames) > 0L
+  if(length(missingNames) > 0L){
+    return(TRUE)
+  }
+
+  if(!is.null(foldResult$errorMessage)){
+    return(TRUE)
+  }
+
+  !is.finite(as.numeric(foldResult$score)[1L]) ||
+    !is.finite(as.integer(foldResult$bestIteration)[1L])
 }
 ####
 ## Fim
@@ -2400,16 +2498,25 @@ TuneBoostTree_RunFoldById <- function(
   prAucBackend = "auto"
 ) {
 
-  TuneBoostTree_RunOneFold(
-    foldData = balancedFolds[[foldId]],
-    hyperparameters = hyperparameters,
-    nRounds = nRounds,
-    earlyStoppingRounds = earlyStoppingRounds,
-    seed = seed + foldId,
-    nThreads = nThreads,
-    evalMetric = evalMetric,
-    engine = engine,
-    prAucBackend = prAucBackend
+  tryCatch(
+    TuneBoostTree_RunOneFold(
+      foldData = balancedFolds[[foldId]],
+      hyperparameters = hyperparameters,
+      nRounds = nRounds,
+      earlyStoppingRounds = earlyStoppingRounds,
+      seed = seed + foldId,
+      nThreads = nThreads,
+      evalMetric = evalMetric,
+      engine = engine,
+      prAucBackend = prAucBackend
+    ),
+    error = function(e) {
+      list(
+        score = NA_real_,
+        bestIteration = NA_integer_,
+        errorMessage = conditionMessage(e)
+      )
+    }
   )
 }
 ####
@@ -2461,15 +2568,15 @@ TuneBoostTree_RunOneFold <- function(
     engine = engine
   )
 
-  testObject <- TuneBoostTree_CreateDataObject(
-    xMatrix = foldData$xTest,
-    yData = foldData$yTest,
-    featureTypes = foldData$featureTypes,
-    nThreads = nThreads,
-    engine = engine
-  )
-
   if(engine == "xgboost"){
+    testObject <- TuneBoostTree_CreateDataObject(
+      xMatrix = foldData$xTest,
+      yData = foldData$yTest,
+      featureTypes = foldData$featureTypes,
+      nThreads = nThreads,
+      engine = engine
+    )
+
     foldModel <- xgboost::xgb.train(
       params = paramsValue,
       data = trainObject,
@@ -2488,14 +2595,31 @@ TuneBoostTree_RunOneFold <- function(
 
     predictedProbability <- as.numeric(stats::predict(foldModel, newdata = testObject))
   } else {
-    foldModel <- lightgbm::lgb.train(
+    paramsValue$early_stopping_round <- as.integer(earlyStoppingRounds)
+    testObject <- lightgbm::lgb.Dataset.create.valid(
+      dataset = trainObject,
+      data = foldData$xTest,
+      label = foldData$yTest
+    )
+    trainArgs <- list(
       params = paramsValue,
       data = trainObject,
       nrounds = as.integer(nRounds),
       valids = list(eval = testObject),
-      early_stopping_rounds = as.integer(earlyStoppingRounds),
       verbose = -1L
     )
+    foldModel <- tryCatch(
+      do.call(lightgbm::lgb.train, trainArgs),
+      error = function(e) e
+    )
+    if(inherits(foldModel, "error") && paramsValue$metric %in% c("average_precision", "aucpr")){
+      paramsValue$metric <- "auc"
+      trainArgs$params <- paramsValue
+      foldModel <- do.call(lightgbm::lgb.train, trainArgs)
+    }
+    if(inherits(foldModel, "error")){
+      stop(foldModel)
+    }
 
     bestIterFold <- as.integer(foldModel$best_iter)
 
@@ -3046,6 +3170,15 @@ TuneBoostTree_RunRBayesianOptimization <- function(
 
   set.seed(as.integer(seed))
   normalizedBounds <- lapply(bounds, function(x) c(as.numeric(x[1L]), as.numeric(x[2L])))
+  parameterNames <- names(bounds)
+  if(!is.null(initGridDt)){
+    initGridDt <- as.data.frame(initGridDt, stringsAsFactors = FALSE)
+    if("Value" %in% names(initGridDt)){
+      initGridDt <- initGridDt[is.finite(as.numeric(initGridDt$Value)), c(parameterNames, "Value"), drop = FALSE]
+    } else {
+      initGridDt <- NULL
+    }
+  }
   result <- rBayesianOptimization::BayesianOptimization(
     FUN = objective,
     bounds = normalizedBounds,
@@ -3598,6 +3731,151 @@ TuneBoostTree_IsScoreMatch <- function(scoreA, scoreB, tolerance = 1e-6) {
 #
 
 
+#' Encontrar melhor iteração associada ao melhor score
+#' @noRd
+TuneBoostTree_FindBestIteration <- function(evaluationLog, hyperparameters, bestScore, bounds) {
+
+  if(is.null(evaluationLog) || nrow(evaluationLog) == 0L || is.null(bounds)){
+    return(NULL)
+  }
+
+  parameterNames <- names(bounds)
+  missingNames <- setdiff(c(parameterNames, "Value", "bestIteration"), names(evaluationLog))
+  if(length(missingNames) > 0L){
+    return(NULL)
+  }
+
+  scoreMatches <- vapply(
+    evaluationLog$Value,
+    TuneBoostTree_IsScoreMatch,
+    logical(1L),
+    scoreB = bestScore
+  )
+  if(!any(scoreMatches)){
+    return(NULL)
+  }
+
+  parameterData <- as.data.frame(hyperparameters[parameterNames], stringsAsFactors = FALSE)
+  parameterData <- TuneBoostTree_NormalizeParams(parameterData, parameterNames)
+  logData <- TuneBoostTree_NormalizeParams(evaluationLog[, parameterNames, drop = FALSE], parameterNames)
+  parameterMatches <- rep(TRUE, nrow(logData))
+  for(parameterName in parameterNames){
+    parameterMatches <- parameterMatches & logData[[parameterName]] == parameterData[[parameterName]][[1L]]
+  }
+
+  candidateRows <- which(scoreMatches & parameterMatches & is.finite(evaluationLog$bestIteration))
+  if(length(candidateRows) == 0L){
+    candidateRows <- which(scoreMatches & is.finite(evaluationLog$bestIteration))
+  }
+  if(length(candidateRows) == 0L){
+    return(NULL)
+  }
+
+  bestIteration <- as.integer(round(evaluationLog$bestIteration[[candidateRows[[1L]]]]))
+  if(is.na(bestIteration) || bestIteration < 1L){
+    return(NULL)
+  }
+  bestIteration
+}
+####
+## Fim
+#
+
+#' Criar grade inicial a partir do log de avaliações
+#' @noRd
+TuneBoostTree_CreateInitGrid <- function(evaluationLog, bounds) {
+
+  if(is.null(evaluationLog) || nrow(evaluationLog) == 0L){
+    return(NULL)
+  }
+  TuneBoostTree_DeduplicateInitGrid(evaluationLog, bounds)
+}
+####
+## Fim
+#
+
+#' Combinar grades iniciais antigas e novas
+#' @noRd
+TuneBoostTree_CombineInitGrid <- function(oldInitGrid, newInitGrid, bounds) {
+
+  if(is.null(oldInitGrid) || nrow(oldInitGrid) == 0L){
+    return(TuneBoostTree_DeduplicateInitGrid(newInitGrid, bounds))
+  }
+  if(is.null(newInitGrid) || nrow(newInitGrid) == 0L){
+    return(TuneBoostTree_DeduplicateInitGrid(oldInitGrid, bounds))
+  }
+
+  commonNames <- union(names(oldInitGrid), names(newInitGrid))
+  oldData <- as.data.frame(oldInitGrid, stringsAsFactors = FALSE)
+  newData <- as.data.frame(newInitGrid, stringsAsFactors = FALSE)
+  for(name in setdiff(commonNames, names(oldData))){
+    oldData[[name]] <- NA
+  }
+  for(name in setdiff(commonNames, names(newData))){
+    newData[[name]] <- NA
+  }
+
+  TuneBoostTree_DeduplicateInitGrid(
+    rbind(oldData[, commonNames, drop = FALSE], newData[, commonNames, drop = FALSE]),
+    bounds
+  )
+}
+####
+## Fim
+#
+
+#' Deduplicar grade inicial por parâmetros normalizados
+#' @noRd
+TuneBoostTree_DeduplicateInitGrid <- function(initGrid, bounds) {
+
+  if(is.null(initGrid)){
+    return(NULL)
+  }
+
+  initGrid <- as.data.frame(initGrid, stringsAsFactors = FALSE)
+  if(nrow(initGrid) == 0L){
+    return(initGrid)
+  }
+
+  parameterNames <- names(bounds)
+  initGrid <- TuneBoostTree_CompleteParameterGrid(initGrid, bounds)
+  extraNames <- setdiff(names(initGrid), parameterNames)
+  parameterData <- TuneBoostTree_ValidateCandidate(initGrid[, parameterNames, drop = FALSE], bounds)
+  out <- data.frame(parameterData, stringsAsFactors = FALSE)
+
+  for(extraName in extraNames){
+    out[[extraName]] <- initGrid[[extraName]]
+  }
+
+  if(!"Value" %in% names(out)){
+    out$Value <- NA_real_
+  }
+  out$Value <- as.numeric(out$Value)
+
+  if(nrow(out) == 0L){
+    return(out)
+  }
+
+  key <- do.call(
+    paste,
+    c(lapply(parameterNames, function(parameterName) out[[parameterName]]), sep = "\r")
+  )
+  orderValue <- ifelse(is.finite(out$Value), out$Value, -Inf)
+  keepRows <- unlist(
+    tapply(
+      seq_len(nrow(out)),
+      key,
+      function(rowIds) rowIds[which.max(orderValue[rowIds])][[1L]]
+    ),
+    use.names = FALSE
+  )
+
+  out[sort(keepRows), , drop = FALSE]
+}
+####
+## Fim
+#
+
 #' Complete Parameter Grid Columns
 #' @noRd
 TuneBoostTree_CompleteParameterGrid <- function(gridData, bounds) {
@@ -3673,7 +3951,11 @@ FitBoostTreeModel <- function(
   }
 
   if(is.null(hyperparameters$eval_metric)){
-    evalMetric <- "aucpr"
+    if(engine == "xgboost"){
+      evalMetric <- "aucpr"
+    } else {
+      evalMetric <- "average_precision"
+    }
   } else {
     evalMetric <- as.character(hyperparameters$eval_metric)
   }
@@ -3713,12 +3995,24 @@ FitBoostTreeModel <- function(
       verbose = as.integer(verbose)
     )
   } else {
-    model <- lightgbm::lgb.train(
+    trainArgs <- list(
       params = paramsValue,
       data = trainObject,
       nrounds = nRounds,
       verbose = as.integer(verbose)
     )
+    model <- tryCatch(
+      do.call(lightgbm::lgb.train, trainArgs),
+      error = function(e) e
+    )
+    if(inherits(model, "error") && paramsValue$metric %in% c("average_precision", "aucpr")){
+      paramsValue$metric <- "auc"
+      trainArgs$params <- paramsValue
+      model <- do.call(lightgbm::lgb.train, trainArgs)
+    }
+    if(inherits(model, "error")){
+      stop(model)
+    }
   }
 
   if(is.null(hyperparameters$threshold)){
