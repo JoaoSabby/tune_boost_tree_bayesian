@@ -1,11 +1,11 @@
 \name{SplitDataBoostTreeFolds}
 \alias{SplitDataBoostTreeFolds}
-\title{Create Stratified Boosted Tree Folds}
+\title{Dividir dados em folds estratificados para boost-tree}
 \usage{SplitDataBoostTreeFolds(yData, nFolds = 10L, seed = 42L)}
 \arguments{
-\item{yData}{Binary 0/1 outcome vector.}
-\item{nFolds}{Integer number of folds.}
-\item{seed}{Integer random seed.}
+\item{yData}{Vetor binário inteiro ou lógico da variável resposta.}
+\item{nFolds}{Inteiro com número de folds.}
+\item{seed}{Inteiro usado como semente aleatória.}
 }
-\description{Creates stratified folds for binary 0/1 outcome data.}
-\value{A list of fold index vectors.}
+\description{Cria folds estratificados para dados binários 0/1, usando a mesma lógica de estratificação do tuner.}
+\value{Lista de vetores inteiros. Cada elemento contém os índices de teste de um fold; os índices de treino são obtidos pelo complemento.}

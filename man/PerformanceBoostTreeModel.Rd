@@ -1,11 +1,11 @@
 \name{PerformanceBoostTreeModel}
 \alias{PerformanceBoostTreeModel}
-\title{Evaluate Boosted Tree Performance}
+\title{Avaliar performance de modelo boosted tree}
 \usage{PerformanceBoostTreeModel(modelObj, testData, formula)}
 \arguments{
-\item{modelObj}{Model object returned by \code{FitBoostTreeModel()}.}
-\item{testData}{Test data frame containing predictors and outcome.}
-\item{formula}{A two-sided formula identifying the outcome.}
+\item{modelObj}{Objeto de modelo retornado por \code{FitBoostTreeModel()}.}
+\item{testData}{data.frame de teste contendo preditores e variável resposta.}
+\item{formula}{Fórmula de duas faces que identifica a variável resposta.}
 }
-\description{Computes PR-AUC, a confusion summary, and predictions for a fitted boosted tree model on test data.}
-\value{A list with PR-AUC, confusion summary, and predictions.}
+\description{Chama \code{PredictBoostTreeModel()} internamente e calcula PR-AUC e uma tabela de confusão resumida.}
+\value{Lista com \code{prAuc}, \code{confusionSummary} e \code{predictions}. \code{predictions} é o tibble retornado por \code{PredictBoostTreeModel()}.}

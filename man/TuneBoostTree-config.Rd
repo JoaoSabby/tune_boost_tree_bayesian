@@ -15,7 +15,7 @@
 \alias{TuneBoostTreeLightgbm}
 \alias{TuneBoostTreeUltraConfig}
 \alias{TuneBoostTreeBayesianUltra}
-\title{Configuration Helpers for TuneBoostTreeBayesian}
+\title{Funções auxiliares de configuração do TuneBoostTree}
 \usage{
 TuneBoostTreeBoostParams(trees = 500L, stop_iter = 20L, learn_rate = NULL,
   tree_depth = NULL, min_n = NULL, loss_reduction = NULL,
@@ -48,29 +48,27 @@ TuneBoostTreeBayesianUltra(formula, data, initial = 20L, nIter = 60L,
   engine = "lightgbm", command = NULL, strict_limbo = TRUE)
 }
 \arguments{
-\item{trees, stop_iter, learn_rate, tree_depth, min_n, loss_reduction, sample_size, mtry}{Boost-tree controls using parsnip naming. Set a boost parameter to a scalar to fix it rather than tune it. For \code{mtry}, \code{"default"} fixes the predictor-sampling fraction at 0.8 (about 80 percent of features), a numeric value fixes another fraction in (0, 1], and \code{NULL} leaves it tunable only when present in \code{TuneBoostTreeSearchSpace()}.}
-\item{max_bin}{Optional fixed histogram-bin value in \code{TuneBoostTreeBoostParams()} or optional bounds in \code{TuneBoostTreeSearchSpace()}. The default dedicated profile fixes it internally at 256 unless supplied explicitly.}
-\item{lambda}{L2 regularization bounds. Recommended to tune for both engines; maps to \code{lambda} in XGBoost and \code{lambda_l2} in LightGBM.}
-\item{alpha}{L1 regularization bounds. Recommended to tune when predictors may be redundant; maps to \code{alpha} in XGBoost and \code{lambda_l1} in LightGBM.}
-\item{max_delta_step}{Optional XGBoost logistic-step stabilization bounds. Tune only for severe imbalance or unstable probabilities.}
-\item{colsample_bytree}{Per-tree feature-sampling bounds. Recommended to tune when many predictors are available.}
-\item{colsample_bylevel}{Optional XGBoost per-level feature-sampling bounds. Tune for additional regularization in wide data.}
-\item{num_leaves}{Optional LightGBM leaf-count bounds. Recommended to tune when using LightGBM because it controls model complexity.}
-\item{min_data_in_leaf}{Optional LightGBM minimum leaf-count bounds. Recommended to tune when using LightGBM to control overfitting.}
-\item{scale_pos_weight}{\code{"auto"}, \code{NULL}, a positive numeric scalar, or optional search bounds in \code{TuneBoostTreeSearchSpace()}. By default, automatic imbalance handling computes negatives / positives for the selected positive class; tune it only when validation data is large enough.}
-\item{folds, stratified}{Cross-validation configuration. If a requested fold count exceeds the minority-class count, the tuner warns and reduces folds so every validation fold contains both classes.}
-\item{command, fallback, acquisition, kappa, eps}{Limbo or rBayesianOptimization optimizer configuration. \code{acquisition} is one of \code{"ucb"} (upper confidence bound, balances predicted score and uncertainty), \code{"ei"} (expected improvement), or \code{"poi"} (probability of improvement). \code{kappa} controls UCB exploration; \code{eps} controls EI/POI improvement margin.}
-\item{balanceFn}{Optional function called as \code{balanceFn(data, formula, ...)} once per training fold. It must return a data.frame, tibble, or data.table containing the outcome and all predictor columns; extra arguments are supplied through \code{...}.}
-\item{...}{Additional arguments forwarded only to \code{balanceFn}.}
-\item{metric, backend}{Metric and PR-AUC backend configuration.}
-\item{seed, parallel, verbose, fallback_trees}{Runtime controls.}
-\item{workers, threads_per_worker, strategy}{Explicit parallel execution controls.}
-\item{eval_metric, tree_method, feature_types}{XGBoost-specific controls.}
-\item{formula, data, initial, nIter, engine}{Arguments forwarded to \code{TuneBoostTreeBayesianUltra()} for the ultra-optimized scenario. The target in \code{data} must be a factor with exactly two levels.}
-\item{strict_limbo}{When \code{TRUE}, ultra configuration requires a working Limbo executable.}
+\item{trees, stop_iter, learn_rate, tree_depth, min_n, loss_reduction, sample_size, mtry}{Controles de boosted tree usando nomenclatura de parsnip. Um valor escalar fixa o parâmetro; \code{NULL} deixa o parâmetro disponível para tuning apenas se também aparecer no espaço de busca. Para \code{mtry}, \code{"default"} fixa a fração de features em \code{0.8}, um número fixa outra fração em \code{(0, 1]} e \code{NULL} permite tuning quando houver limites em \code{TuneBoostTreeSearchSpace()}.}
+\item{max_bin}{Valor fixo opcional em \code{TuneBoostTreeBoostParams()} ou limites opcionais em \code{TuneBoostTreeSearchSpace()}. Controla o número de bins de histograma das engines.}
+\item{lambda}{Limites de regularização L2. Mapeia para \code{lambda} no XGBoost e \code{lambda_l2} no LightGBM.}
+\item{alpha}{Limites de regularização L1. Mapeia para \code{alpha} no XGBoost e \code{lambda_l1} no LightGBM.}
+\item{max_delta_step}{Limites opcionais do estabilizador logístico do XGBoost, útil em desbalanceamento severo.}
+\item{colsample_bytree}{Limites de amostragem de features por árvore. Mapeia para \code{colsample_bytree} no XGBoost e \code{feature_fraction} no LightGBM.}
+\item{colsample_bylevel}{Limites opcionais de amostragem de features por nível no XGBoost.}
+\item{num_leaves}{Limites opcionais do número de folhas no LightGBM; controla complexidade.}
+\item{min_data_in_leaf}{Limites opcionais do mínimo de linhas por folha no LightGBM; controla sobreajuste.}
+\item{scale_pos_weight}{\code{"auto"}, \code{NULL}, escalar numérico positivo ou limites opcionais no espaço de busca. \code{"auto"} calcula a razão negativos/positivos no treino de cada fold.}
+\item{folds, stratified}{Configuração de validação cruzada. \code{stratified} deve ser \code{TRUE}; os folds preservam a distribuição de classes sempre que possível.}
+\item{command, fallback, acquisition, kappa, eps}{Configuração do Limbo ou rBayesianOptimization. \code{acquisition} aceita \code{"ucb"} (upper confidence bound, equilibra score previsto e incerteza), \code{"ei"} (expected improvement) ou \code{"poi"} (probability of improvement). \code{kappa} controla exploração no UCB; \code{eps} controla a margem de melhoria em EI/POI.}
+\item{balanceFn}{Função opcional chamada como \code{balanceFn(data, formula, ...)} uma vez por treino de fold. Deve retornar data.frame, tibble ou data.table com a resposta e todos os preditores exigidos por \code{formula}.}
+\item{...}{Argumentos extras repassados apenas para \code{balanceFn}.}
+\item{metric, backend}{Configuração de métrica e backend de PR-AUC. Atualmente a métrica suportada é \code{"pr_auc"}; \code{backend = "auto"} escolhe a implementação disponível.}
+\item{seed, parallel, verbose, fallback_trees}{Controles de execução. \code{parallel} define workers de fold e threads por engine; \code{verbose} controla mensagens de progresso do pacote; \code{fallback_trees} é usado quando o melhor número de árvores não é recuperado via early stopping.}
+\item{workers, threads_per_worker, strategy}{Controles explícitos de paralelismo. \code{workers} define folds simultâneos; \code{threads_per_worker} define threads por treino de engine; \code{strategy} escolhe a preferência entre folds, engine ou execução sequencial.}
+\item{eval_metric, tree_method, feature_types}{Controles específicos de XGBoost.}
+\item{formula, data, initial, nIter, engine}{Argumentos repassados a \code{TuneBoostTreeBayesianUltra()}. A resposta em \code{data} deve representar classificação binária.}
+\item{strict_limbo}{Quando \code{TRUE}, a configuração ultra exige executável Limbo funcional.}
 }
-\value{Each helper returns a validated list consumed by \code{TuneBoostTree()}. Tabular outputs returned by tuning and prediction helpers are tibbles.}
-\description{Small configuration constructors document tuning scenarios while keeping the main tuning function compact and safe.}
-\details{
-The default dedicated HPC profile tunes only \code{learn_rate}, \code{tree_depth}, \code{min_n}, \code{loss_reduction}, and \code{sample_size}. Optional entries such as \code{mtry}, \code{max_bin}, \code{lambda}, \code{alpha}, \code{colsample_bytree}, engine-specific bounds, and \code{scale_pos_weight} remain available when explicitly supplied, but are no longer tuned by default to keep Bayesian search focused and fast on the target Xeon Platinum 8260 machine.
-}
+\value{Cada auxiliar retorna uma lista validada consumida por \code{TuneBoostTree()}. As classes retornadas incluem \code{tbtb_boost_params}, \code{tbtb_search_space}, \code{tbtb_cv}, \code{tbtb_optimizer}, \code{tbtb_imbalance}, \code{tbtb_performance}, \code{tbtb_control}, \code{tbtb_parallel} e \code{tbtb_engine}. Saídas tabulares de tuning e predição são tibbles.}
+\description{Construtores pequenos e explícitos para documentar cenários de tuning e manter a função principal compacta.}
+\details{O perfil padrão otimiza \code{learn_rate}, \code{tree_depth}, \code{min_n}, \code{loss_reduction} e \code{sample_size}. Entradas opcionais como \code{mtry}, \code{max_bin}, \code{lambda}, \code{alpha}, \code{colsample_bytree}, limites específicos de engine e \code{scale_pos_weight} continuam disponíveis quando informadas explicitamente, mas não são tunadas por padrão para manter a busca Bayesiana focada e rápida.}

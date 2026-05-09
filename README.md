@@ -211,6 +211,26 @@ resultado_manual <- TuneBoostTree(
 
 `parallel = "auto"` prioriza segurança: detecta o orçamento de cores físicos, evita oversubscription, usa execução sequencial para bases pequenas e distribui folds quando há ganho provável.
 
+### Como o paralelismo é executado
+
+O paralelismo do pacote tem dois níveis distintos:
+
+1. **Paralelismo entre folds**, coordenado pelo R.
+2. **Paralelismo interno da engine**, coordenado pelo XGBoost ou LightGBM durante o treino de cada fold.
+
+Na validação cruzada, os folds são distribuídos com o pacote base `parallel`:
+
+- quando há apenas um worker, os folds rodam em loop sequencial dentro do R;
+- no Windows, o pacote usa cluster PSOCK com `parallel::makeCluster()` e `parallel::parLapply()`;
+- em Linux, macOS e outros sistemas Unix-like, o pacote usa fork com `parallel::mclapply(..., mc.cores = workers)`.
+
+Ou seja, o XGBoost e o LightGBM **não recebem a lista de folds para paralelizar entre folds**. Essa distribuição é feita pelo R. O que é passado às engines é o número de threads disponível para cada treino individual dentro de cada fold:
+
+- no XGBoost, `threads_per_worker` é convertido para `nthread` nos parâmetros de treino e também é usado na construção do `xgb.DMatrix`;
+- no LightGBM, `threads_per_worker` é convertido para `num_threads` nos parâmetros de treino; o `lgb.Dataset` é criado sem receber threads diretamente.
+
+Na prática, `workers` controla quantos folds podem treinar ao mesmo tempo, enquanto `threads_per_worker` controla quantas threads cada modelo XGBoost/LightGBM pode usar dentro do seu próprio fold. O modo automático tenta manter `workers * threads_per_worker` dentro do orçamento de cores físicos detectado, reduzindo o risco de oversubscription.
+
 ## Cenário 7: ultra otimizado
 
 ```r

@@ -3,7 +3,7 @@
 \name{TuneBoostTree}
 \alias{TuneBoostTree}
 \alias{TuneBoostTreeBayesian}
-\title{Tune Gradient Boosted Tree Hyperparameters}
+\title{Tunar hiperparâmetros de gradient boosted trees}
 \usage{
 TuneBoostTree(
   formula,
@@ -38,20 +38,28 @@ TuneBoostTreeBayesian(
 )
 }
 \arguments{
-\item{formula}{Two-sided formula with one binary outcome and numeric predictors.}
-\item{data}{Non-empty data.frame, tibble, or data.table containing all training rows and columns referenced by \code{formula}.}
-\item{initial}{\code{NULL}, non-negative integer, or tabular warm-start grid. An integer requests random initial optimizer points. A table must contain hyperparameter columns plus \code{Value}; returned \code{initial} can be reused here.}
-\item{nIter}{Non-negative integer. Number of Bayesian optimization iterations after initialization.}
-\item{engine}{Character scalar \code{"xgboost"}/\code{"lightgbm"} or an engine block from \code{TuneBoostTreeXgboost()} or \code{TuneBoostTreeLightgbm()}.}
-\item{boost}{Boosting defaults from \code{TuneBoostTreeBoostParams()}. Fixed values here override optimizer candidates.}
-\item{searchSpace}{Bayesian search bounds from \code{TuneBoostTreeSearchSpace()}. The deprecated name \code{search_space} is accepted through \code{...} for compatibility.}
-\item{cv}{Cross-validation settings from \code{TuneBoostTreeCv()}.}
-\item{optimizer}{Optimizer settings from \code{TuneBoostTreeOptimizerRBayesianOptimization()}, \code{TuneBoostTreeOptimizerLimbo()}, or \code{TuneBoostTreeInternalOptimizer()}.}
-\item{imbalance}{Class-imbalance settings from \code{TuneBoostTreeImbalance()}.}
-\item{performance}{Performance/scoring settings from \code{TuneBoostTreePerformance()}.}
-\item{control}{Runtime controls from \code{TuneBoostTreeControl()}.}
-\item{...}{Compatibility arguments. \code{search_space} is mapped to \code{searchSpace}; any other name is rejected.}
+\item{formula}{Fórmula de duas faces com uma variável resposta binária e preditores numéricos.}
+\item{data}{data.frame, tibble ou data.table não vazio contendo todas as linhas de treino e colunas referenciadas por \code{formula}.}
+\item{initial}{\code{NULL}, inteiro não negativo ou grade tabular de warm-start. Um inteiro solicita pontos iniciais aleatórios do otimizador. Uma tabela deve conter colunas de hiperparâmetros e a coluna \code{Value}; o \code{initial} retornado por uma execução pode ser reutilizado aqui.}
+\item{nIter}{Inteiro não negativo. Número de iterações de otimização Bayesiana após a inicialização.}
+\item{engine}{Texto escalar \code{"xgboost"}/\code{"lightgbm"} ou bloco de engine criado por \code{TuneBoostTreeXgboost()} ou \code{TuneBoostTreeLightgbm()}.}
+\item{boost}{Padrões de boosting criados por \code{TuneBoostTreeBoostParams()}. Valores fixos neste objeto sobrescrevem candidatos do otimizador.}
+\item{searchSpace}{Limites da busca Bayesiana criados por \code{TuneBoostTreeSearchSpace()}. O nome antigo \code{search_space} é aceito via \code{...} para compatibilidade.}
+\item{cv}{Configuração de validação cruzada criada por \code{TuneBoostTreeCv()}.}
+\item{optimizer}{Configuração de otimizador criada por \code{TuneBoostTreeOptimizerRBayesianOptimization()}, \code{TuneBoostTreeOptimizerLimbo()} ou \code{TuneBoostTreeInternalOptimizer()}.}
+\item{imbalance}{Configuração de desbalanceamento criada por \code{TuneBoostTreeImbalance()}.}
+\item{performance}{Configuração de métrica/scoring criada por \code{TuneBoostTreePerformance()}.}
+\item{control}{Controles de execução criados por \code{TuneBoostTreeControl()}.}
+\item{...}{Argumentos de compatibilidade. \code{search_space} é mapeado para \code{searchSpace}; qualquer outro nome é rejeitado.}
 }
-\value{A named list containing \code{bestHyperparameters}, a list of tuned and fixed hyperparameters ready for \code{FitBoostTreeModel()}; \code{bestScore}, the best mean cross-validated PR-AUC; \code{bestThreshold}, a list with the selected probability threshold, metric, and score; \code{initial}, a tibble warm-start grid with candidate values and \code{Value}; \code{evaluationLog}, a tibble with every evaluated candidate, PR-AUC \code{Value}, and \code{bestIteration}; and \code{config}, a list of resolved engine, boost, searchSpace, cv, optimizer, imbalance, performance, control, and parallel settings.}
-\description{Tunes binary boosted-tree hyperparameters with cross-validated Bayesian optimization, early stopping, optional imbalance handling, and XGBoost or LightGBM engines.}
-\details{The positive class is selected deterministically from the target factor: the rarer level is positive; if both levels have the same count, the first level in \code{levels(target)} is positive. Class ordering is stored in the result as \code{c(negative, positive)}.}
+\value{Lista nomeada com os componentes abaixo.
+\itemize{
+\item \code{bestHyperparameters}: lista com o melhor conjunto de hiperparâmetros encontrado. Inclui parâmetros tunados, parâmetros fixos de \code{boost}, \code{trees} escolhido por \code{early stopping}, \code{stop_iter}, \code{eval_metric}, \code{scale_pos_weight} quando aplicável e \code{threshold} otimizado. É o principal objeto a ser passado para \code{FitBoostTreeModel()}.
+\item \code{bestScore}: escalar numérico com o melhor PR-AUC médio de validação cruzada. Valores maiores indicam melhor desempenho no objetivo otimizado.
+\item \code{bestThreshold}: lista com \code{threshold}, \code{metric} e \code{score}, calculada a partir de probabilidades out-of-fold após a escolha dos hiperparâmetros. O \code{threshold} também é copiado para \code{bestHyperparameters$threshold}.
+\item \code{initial}: tibble de warm-start com colunas dos hiperparâmetros ativos e \code{Value}. Pode combinar histórico fornecido em \code{initial} com avaliações novas, deduplicando candidatos repetidos e mantendo o melhor \code{Value}. Pode ser reutilizado em chamada posterior de \code{TuneBoostTree()}.
+\item \code{evaluationLog}: tibble de auditoria da execução atual. Cada linha contém um candidato avaliado, o PR-AUC de validação cruzada em \code{Value} e \code{bestIteration}, que registra a rodada efetiva selecionada por \code{early stopping} para aquele candidato.
+\item \code{config}: lista com as configurações resolvidas usadas na execução: \code{engine}, \code{boost}, \code{searchSpace}, \code{cv}, \code{optimizer}, \code{imbalance}, \code{performance}, \code{control} e \code{parallel}.
+}}
+\description{Executa tuning de hiperparâmetros para boosted trees binárias com otimização Bayesiana, validação cruzada estratificada, \code{early stopping}, tratamento opcional de desbalanceamento e engines XGBoost ou LightGBM.}
+\details{A classe positiva é selecionada de forma determinística a partir do fator de resposta: o nível mais raro é positivo; em empate, o primeiro nível em \code{levels(target)} é positivo. A ordenação das classes é armazenada no resultado como \code{c(negative, positive)}.}

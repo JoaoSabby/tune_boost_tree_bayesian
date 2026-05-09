@@ -1,39 +1,51 @@
-#' Build Boosting Hyperparameter Defaults
+#' Montar padrões de hiperparâmetros de boosting
 #'
 #' @description
-#' Creates the fixed `parsnip::boost_tree()`-style arguments used by
-#' [TuneBoostTree()]. Any argument left as `NULL` is not fixed here and may be
-#' supplied by [TuneBoostTreeSearchSpace()] for Bayesian optimization.
+#' Cria a lista de argumentos fixos, usando nomes compatíveis com
+#' `parsnip::boost_tree()`, que será consumida por [TuneBoostTree()]. Parâmetros
+#' informados como escalares são tratados como fixos. Parâmetros informados como
+#' `NULL` ficam disponíveis para otimização apenas quando também aparecem em
+#' [TuneBoostTreeSearchSpace()].
 #'
-#' @param trees Positive integer. Maximum number of boosting rounds evaluated
-#'   inside each cross-validation fold. Larger values give early stopping more
-#'   room to find an optimal iteration but increase runtime.
-#' @param stop_iter Positive integer. Early-stopping patience in rounds. Training
-#'   stops within a fold after this many rounds without validation improvement;
-#'   the final `trees` returned by [TuneBoostTree()] is the selected iteration.
-#' @param learn_rate Optional numeric scalar in `(0, 1]`. Fixed shrinkage applied
-#'   to each tree. `NULL` leaves `learn_rate` tunable through `searchSpace`.
-#' @param tree_depth Optional positive integer scalar. Fixed maximum depth of each
-#'   tree. Deeper trees model stronger interactions and can overfit more easily.
-#' @param min_n Optional positive numeric scalar. Fixed minimum node size proxy:
-#'   translated to XGBoost `min_child_weight` and LightGBM
-#'   `min_sum_hessian_in_leaf`. Larger values make splits more conservative.
-#' @param loss_reduction Optional non-negative numeric scalar. Fixed minimum loss
-#'   reduction required for a split; translated to XGBoost `gamma` and LightGBM
-#'   `min_gain_to_split`. Larger values regularize the tree structure.
-#' @param sample_size Optional numeric scalar in `(0, 1]`. Row-sampling fraction
-#'   per boosting iteration; translated to XGBoost `subsample` and LightGBM
-#'   `bagging_fraction`. Lower values add stochastic regularization.
-#' @param mtry Optional numeric scalar in `(0, 1]`, `NULL`, or the character value
-#'   `"default"`. Numeric values fix the predictor-sampling fraction used at
-#'   each split/node. `"default"` fixes the fraction at `0.8`, meaning about 80%
-#'   of the available predictors are considered. `NULL` leaves `mtry` tunable
-#'   only if it is present in [TuneBoostTreeSearchSpace()].
-#' @param max_bin Optional positive integer scalar. Fixed histogram bin count for
-#'   native histogram engines. More bins can improve precision for continuous
-#'   predictors and usually increase memory/time.
+#' @param trees Inteiro positivo. Número máximo de rodadas de boosting avaliadas
+#'   em cada fold de validação cruzada. Valores maiores dão mais espaço para o
+#'   `early stopping` encontrar a melhor iteração, mas aumentam o tempo de
+#'   execução.
+#' @param stop_iter Inteiro positivo. Paciência do `early stopping`, em rodadas.
+#'   O treino de um fold para após esse número de rodadas sem melhora na
+#'   validação; o `trees` final retornado por [TuneBoostTree()] é a iteração
+#'   selecionada.
+#' @param learn_rate Escalar numérico opcional em `(0, 1]`. Define o `shrinkage`
+#'   aplicado a cada árvore. `NULL` deixa `learn_rate` ser controlado por
+#'   `searchSpace`.
+#' @param tree_depth Escalar inteiro positivo opcional. Profundidade máxima fixa
+#'   de cada árvore. Valores maiores permitem interações mais complexas e podem
+#'   aumentar sobreajuste.
+#' @param min_n Escalar numérico positivo opcional. Proxy de tamanho mínimo de
+#'   nó/folha; é traduzido para `min_child_weight` no XGBoost e
+#'   `min_sum_hessian_in_leaf` no LightGBM. Valores maiores tornam os splits mais
+#'   conservadores.
+#' @param loss_reduction Escalar numérico não negativo opcional. Ganho mínimo
+#'   exigido para criar um split; é traduzido para `gamma` no XGBoost e
+#'   `min_gain_to_split` no LightGBM. Valores maiores regularizam a estrutura das
+#'   árvores.
+#' @param sample_size Escalar numérico opcional em `(0, 1]`. Fração de linhas
+#'   amostrada por iteração de boosting; é traduzida para `subsample` no XGBoost
+#'   e `bagging_fraction` no LightGBM. Valores menores adicionam regularização
+#'   estocástica.
+#' @param mtry Escalar numérico opcional em `(0, 1]`, `NULL` ou o texto
+#'   `"default"`. Valor numérico fixa a fração de preditores considerada em cada
+#'   split/nó. `"default"` fixa a fração em `0.8`, isto é, aproximadamente 80%
+#'   das features. `NULL` deixa `mtry` ser tunado somente se estiver presente em
+#'   [TuneBoostTreeSearchSpace()].
+#' @param max_bin Escalar inteiro positivo opcional. Número de bins de histograma
+#'   usado por engines com algoritmo histogram-based. Valores maiores preservam
+#'   mais detalhe em variáveis contínuas e podem aumentar memória/tempo.
 #'
-#' @return A validated list with class `tbtb_boost_params`.
+#' @return Lista validada com classe `tbtb_boost_params`. O objeto contém os
+#'   valores fixos que serão combinados com os candidatos do otimizador e inclui
+#'   `trees`, `stop_iter`, `learn_rate`, `tree_depth`, `min_n`,
+#'   `loss_reduction`, `sample_size`, `mtry` e `max_bin`.
 #' @export
 TuneBoostTreeBoostParams <- function(trees = 500L, stop_iter = 20L, learn_rate = NULL, tree_depth = NULL, min_n = NULL, loss_reduction = NULL, sample_size = NULL, mtry = "default", max_bin = NULL) {
   if (is.character(mtry) && identical(mtry[1L], "default")) {
@@ -49,55 +61,65 @@ TuneBoostTreeBoostParams <- function(trees = 500L, stop_iter = 20L, learn_rate =
   out
 }
 
-#' Build Bayesian Search Space
+#' Montar espaço de busca Bayesiano
 #'
 #' @description
-#' Defines lower and upper bounds for hyperparameters optimized by
-#' [TuneBoostTree()]. Names follow the `parsnip::boost_tree()` convention where
-#' possible (`learn_rate`, `tree_depth`, `min_n`, `loss_reduction`,
-#' `sample_size`, `mtry`, `stop_iter`, `trees`). Engine-specific extras keep
-#' their native XGBoost/LightGBM names.
+#' Define limites inferiores e superiores para hiperparâmetros otimizados por
+#' [TuneBoostTree()]. Sempre que possível, os nomes seguem
+#' `parsnip::boost_tree()` (`learn_rate`, `tree_depth`, `min_n`,
+#' `loss_reduction`, `sample_size`, `mtry`). Parâmetros específicos de engine
+#' preservam os nomes nativos de XGBoost/LightGBM.
 #'
-#' @param learn_rate Numeric length-2 vector. Shrinkage bounds. Small values are
-#'   slower but often more stable; large values learn faster and can overfit.
-#' @param tree_depth Numeric/integer length-2 vector. Maximum tree-depth bounds.
-#'   Values are rounded to integers before model fitting.
-#' @param min_n Numeric length-2 vector. Bounds for the minimum child/leaf
-#'   regularization proxy. Larger values reduce small, noisy leaves.
-#' @param loss_reduction Numeric length-2 vector. Bounds for minimum split gain.
-#'   Larger values require stronger evidence before adding splits.
-#' @param sample_size Numeric length-2 vector in `(0, 1]`. Bounds for row
-#'   subsampling. Values below 1 inject randomness and reduce correlation between
-#'   trees.
-#' @param mtry `NULL` or numeric length-2 vector in `(0, 1]`. Bounds for the
-#'   fraction of predictors sampled at each split/node. `NULL` means `mtry` is
-#'   not optimized; [TuneBoostTreeBoostParams()] defaults to `"default"` (0.8)
-#'   unless explicitly changed.
-#' @param max_bin `NULL` or numeric/integer length-2 vector. Histogram-bin
-#'   bounds. Higher values preserve more detail and can increase memory use.
-#' @param lambda `NULL` or numeric length-2 vector. L2-regularization bounds:
-#'   XGBoost `lambda`, LightGBM `lambda_l2`. Higher values shrink leaf weights.
-#' @param alpha `NULL` or numeric length-2 vector. L1-regularization bounds:
-#'   XGBoost `alpha`, LightGBM `lambda_l1`. Higher values can make leaf weights
-#'   sparser and reduce weak effects.
-#' @param max_delta_step `NULL` or numeric length-2 vector. XGBoost logistic-step
-#'   stabilization bounds, most useful for severe imbalance. Ignored by LightGBM.
-#' @param colsample_bytree `NULL` or numeric length-2 vector in `(0, 1]`.
-#'   Per-tree feature-sampling bounds: XGBoost `colsample_bytree`, LightGBM
-#'   `feature_fraction`. Lower values regularize high-dimensional data.
-#' @param colsample_bylevel `NULL` or numeric length-2 vector in `(0, 1]`.
-#'   XGBoost per-level feature-sampling bounds. Ignored by LightGBM.
-#' @param num_leaves `NULL` or numeric/integer length-2 vector. LightGBM leaf
-#'   count bounds. Higher values increase interaction capacity. Ignored by
-#'   XGBoost.
-#' @param min_data_in_leaf `NULL` or numeric/integer length-2 vector. LightGBM
-#'   minimum rows per leaf. Higher values regularize leaves. Ignored by XGBoost.
-#' @param scale_pos_weight `NULL` or numeric length-2 vector. Positive-class
-#'   weight bounds. Usually prefer [TuneBoostTreeImbalance()] with
-#'   `scale_pos_weight = "auto"`; tune this only with enough validation data.
+#' @param learn_rate Vetor numérico de tamanho 2. Limites do `shrinkage`. Valores
+#'   menores tendem a ser mais estáveis e mais lentos; valores maiores aprendem
+#'   mais rápido e podem sobreajustar.
+#' @param tree_depth Vetor numérico/inteiro de tamanho 2. Limites da profundidade
+#'   máxima das árvores. Os valores são arredondados para inteiros antes do fit.
+#' @param min_n Vetor numérico de tamanho 2. Limites do proxy de tamanho mínimo
+#'   de nó/folha. Valores maiores reduzem folhas pequenas e ruidosas.
+#' @param loss_reduction Vetor numérico de tamanho 2. Limites do ganho mínimo
+#'   para split. Valores maiores exigem evidência mais forte para adicionar
+#'   splits.
+#' @param sample_size Vetor numérico de tamanho 2 em `(0, 1]`. Limites da fração
+#'   de linhas amostradas por iteração. Valores abaixo de 1 reduzem correlação
+#'   entre árvores e atuam como regularização.
+#' @param mtry `NULL` ou vetor numérico de tamanho 2 em `(0, 1]`. Limites da
+#'   fração de preditores amostrada em cada split/nó. `NULL` remove `mtry` da
+#'   otimização; nesse caso [TuneBoostTreeBoostParams()] usa `"default"` (0.8)
+#'   salvo configuração explícita.
+#' @param max_bin `NULL` ou vetor numérico/inteiro de tamanho 2. Limites do número
+#'   de bins de histograma. Valores maiores preservam mais detalhe e podem
+#'   aumentar memória/tempo.
+#' @param lambda `NULL` ou vetor numérico de tamanho 2. Limites da regularização
+#'   L2: `lambda` no XGBoost e `lambda_l2` no LightGBM. Valores maiores reduzem
+#'   magnitude dos pesos das folhas.
+#' @param alpha `NULL` ou vetor numérico de tamanho 2. Limites da regularização
+#'   L1: `alpha` no XGBoost e `lambda_l1` no LightGBM. Valores maiores podem
+#'   tornar pesos de folhas mais esparsos.
+#' @param max_delta_step `NULL` ou vetor numérico de tamanho 2. Limites do
+#'   estabilizador logístico do XGBoost, útil principalmente em desbalanceamento
+#'   severo. É ignorado pelo LightGBM.
+#' @param colsample_bytree `NULL` ou vetor numérico de tamanho 2 em `(0, 1]`.
+#'   Limites de amostragem de features por árvore: `colsample_bytree` no XGBoost
+#'   e `feature_fraction` no LightGBM. Valores menores regularizam dados largos.
+#' @param colsample_bylevel `NULL` ou vetor numérico de tamanho 2 em `(0, 1]`.
+#'   Limites de amostragem de features por nível no XGBoost. É ignorado pelo
+#'   LightGBM.
+#' @param num_leaves `NULL` ou vetor numérico/inteiro de tamanho 2. Limites do
+#'   número de folhas do LightGBM. Valores maiores aumentam capacidade de
+#'   interação. É ignorado pelo XGBoost.
+#' @param min_data_in_leaf `NULL` ou vetor numérico/inteiro de tamanho 2. Limites
+#'   do mínimo de linhas por folha no LightGBM. Valores maiores regularizam as
+#'   folhas. É ignorado pelo XGBoost.
+#' @param scale_pos_weight `NULL` ou vetor numérico de tamanho 2. Limites do peso
+#'   da classe positiva. Em geral, deve-se preferir [TuneBoostTreeImbalance()] com
+#'   `scale_pos_weight = "auto"`; recomenda-se tunar esse peso apenas quando há
+#'   validação suficiente.
 #'
-#' @return A validated named list of finite increasing optimizer bounds with
-#'   class `tbtb_search_space`.
+#' @return Lista nomeada validada, com classe `tbtb_search_space`. Cada elemento
+#'   contém limites finitos e crescentes (`lower`, `upper`) usados pelo otimizador
+#'   para gerar candidatos. Parâmetros com `NULL` não aparecem na lista e não são
+#'   tunados.
 #' @export
 TuneBoostTreeSearchSpace <- function(learn_rate = c(0.01, 0.2), tree_depth = c(2L, 12L), min_n = c(1, 80), loss_reduction = c(0, 8), sample_size = c(0.55, 1), mtry = NULL, max_bin = NULL, lambda = NULL, alpha = NULL, max_delta_step = NULL, colsample_bytree = NULL, colsample_bylevel = NULL, num_leaves = NULL, min_data_in_leaf = NULL, scale_pos_weight = NULL) {
   out <- list(learn_rate = learn_rate, tree_depth = tree_depth, min_n = min_n, sample_size = sample_size, mtry = mtry, loss_reduction = loss_reduction, max_bin = max_bin, lambda = lambda, alpha = alpha, max_delta_step = max_delta_step, colsample_bytree = colsample_bytree, colsample_bylevel = colsample_bylevel, num_leaves = num_leaves, min_data_in_leaf = min_data_in_leaf, scale_pos_weight = scale_pos_weight)
@@ -115,23 +137,25 @@ TuneBoostTreeSearchSpace <- function(learn_rate = c(0.01, 0.2), tree_depth = c(2
   out
 }
 
-#' Build Cross-Validation Configuration
+#' Montar configuração de validação cruzada
 #'
 #' @description
-#' Configures the resampling used by [TuneBoostTree()]. The current implementation
-#' supports stratified binary folds only, so every fold attempts to preserve the
-#' original negative/positive class ratio.
+#' Configura a reamostragem usada por [TuneBoostTree()]. A implementação atual
+#' suporta folds binários estratificados; cada fold tenta preservar a proporção
+#' original entre classe negativa e classe positiva.
 #'
-#' @param folds Positive integer greater than or equal to 2. Number of validation
-#'   folds. More folds use more training data per fit and usually cost more time.
-#'   If a class has fewer observations than `folds`, the effective number of
-#'   folds is reduced internally to keep both classes evaluable.
-#' @param stratified Logical scalar. Must be `TRUE`. `TRUE` means folds are split
-#'   separately inside each class and then combined, reducing the risk that a fold
-#'   misses the minority class. `FALSE` is rejected because PR-AUC for binary
-#'   imbalance is not reliable without class-preserving folds.
+#' @param folds Inteiro positivo maior ou igual a 2. Número de folds de
+#'   validação. Mais folds usam mais dados em cada treino e geralmente aumentam o
+#'   custo computacional. Se alguma classe tiver menos observações que `folds`, o
+#'   número efetivo de folds é reduzido internamente para manter as duas classes
+#'   avaliáveis.
+#' @param stratified Lógico escalar. Deve ser `TRUE`. `TRUE` significa que as
+#'   classes são embaralhadas separadamente e depois combinadas em folds, reduzindo
+#'   o risco de um fold ficar sem classe minoritária. `FALSE` é rejeitado porque
+#'   PR-AUC em classificação binária desbalanceada não é confiável sem folds que
+#'   preservem classes.
 #'
-#' @return A validated list with class `tbtb_cv`.
+#' @return Lista validada com classe `tbtb_cv`, contendo `folds` e `stratified`.
 #' @export
 TuneBoostTreeCv <- function(folds = 10L, stratified = TRUE) {
   out <- list(folds = as.integer(folds), stratified = isTRUE(stratified))
@@ -141,31 +165,35 @@ TuneBoostTreeCv <- function(folds = 10L, stratified = TRUE) {
   out
 }
 
-#' Build Limbo Optimizer Configuration
+#' Montar configuração do otimizador Limbo
 #'
 #' @description
-#' Configures the optional external Limbo ask/tell optimizer used by
-#' [TuneBoostTree()]. If Limbo is unavailable and `fallback = TRUE`, optimization
-#' falls back to the package-native optimizer rather than failing the tuning run.
+#' Configura o otimizador externo Limbo em modo ask/tell, usado opcionalmente por
+#' [TuneBoostTree()]. Se o executável Limbo não estiver disponível e
+#' `fallback = TRUE`, a execução usa o otimizador nativo do pacote em vez de
+#' abortar.
 #'
-#' @param command `NULL` or character scalar. Executable path/name for the Limbo
-#'   ask/tell adapter. `NULL` searches `TBTB_LIMBO_COMMAND` and then the package
-#'   `bin` directory.
-#' @param fallback Logical scalar. `TRUE` allows fallback to the internal
-#'   optimizer when the command is missing or errors. `FALSE` makes Limbo
-#'   mandatory.
-#' @param acquisition One of `"ucb"`, `"ei"`, or `"poi"`. `"ucb"` (upper
-#'   confidence bound) favors candidates with high predicted score and/or high
-#'   uncertainty; `"ei"` (expected improvement) favors expected gain over the
-#'   current best score; `"poi"` (probability of improvement) favors candidates
-#'   likely to beat the current best and can be greedier.
-#' @param kappa Finite numeric scalar used by `"ucb"`. Larger values explore
-#'   uncertain regions more aggressively; smaller values exploit known good
-#'   regions. Ignored by `"ei"`/`"poi"` backends that do not use UCB.
-#' @param eps Finite numeric scalar improvement margin used by `"ei"` and
-#'   `"poi"`. Larger values demand more improvement before a point is attractive.
+#' @param command `NULL` ou texto escalar. Caminho/nome do executável ask/tell do
+#'   Limbo. `NULL` procura `TBTB_LIMBO_COMMAND` e depois o diretório `bin` do
+#'   pacote.
+#' @param fallback Lógico escalar. `TRUE` permite fallback para o otimizador
+#'   interno quando o comando não existe ou falha. `FALSE` torna o Limbo
+#'   obrigatório.
+#' @param acquisition Uma das opções `"ucb"`, `"ei"` ou `"poi"`. `"ucb"`
+#'   (`upper confidence bound`) favorece candidatos com score previsto alto e/ou
+#'   incerteza alta; `"ei"` (`expected improvement`) favorece ganho esperado
+#'   sobre o melhor score atual; `"poi"` (`probability of improvement`) favorece
+#'   candidatos com maior probabilidade de superar o melhor score e pode ser mais
+#'   ganancioso.
+#' @param kappa Escalar numérico finito usado por `"ucb"`. Valores maiores
+#'   exploram regiões incertas com mais força; valores menores exploram menos e
+#'   intensificam regiões já promissoras.
+#' @param eps Escalar numérico finito usado por `"ei"` e `"poi"`. Define uma
+#'   margem mínima de melhoria; valores maiores tornam pequenas melhorias menos
+#'   atrativas.
 #'
-#' @return A validated optimizer list with class `tbtb_optimizer`.
+#' @return Lista validada com classe `tbtb_optimizer`, contendo `type`,
+#'   `command`, `fallback`, `acquisition`, `kappa` e `eps`.
 #' @export
 TuneBoostTreeOptimizerLimbo <- function(command = NULL, fallback = TRUE, acquisition = c("ucb", "ei", "poi"), kappa = 2.576, eps = 0) {
   command <- TuneBoostTree_ResolveLimboCommand(command)
@@ -176,9 +204,15 @@ TuneBoostTreeOptimizerLimbo <- function(command = NULL, fallback = TRUE, acquisi
   out
 }
 
-#' Build Internal Optimizer Configuration
+#' Montar configuração do otimizador interno
 #'
-#' @return A dependency-free optimizer configuration list.
+#' @description
+#' Cria uma configuração de otimizador sem dependências externas. Esse backend é
+#' usado como fallback seguro quando backends opcionais não estão disponíveis ou
+#' quando solicitado explicitamente.
+#'
+#' @return Lista com classe `tbtb_optimizer`, `type = "internal"` e campos de
+#'   controle compatíveis com os demais otimizadores.
 #' @export
 TuneBoostTreeInternalOptimizer <- function() {
   out <- list(type = "internal", command = NA_character_, fallback = TRUE, acquisition = "internal", kappa = 0, eps = 0)
@@ -186,24 +220,27 @@ TuneBoostTreeInternalOptimizer <- function() {
   out
 }
 
-#' Build rBayesianOptimization Configuration
+#' Montar configuração do rBayesianOptimization
 #'
 #' @description
-#' Configures [rBayesianOptimization::BayesianOptimization()] as the optimizer
-#' backend for [TuneBoostTree()].
+#' Configura [rBayesianOptimization::BayesianOptimization()] como backend de
+#' otimização para [TuneBoostTree()].
 #'
-#' @param acquisition One of `"ucb"`, `"ei"`, or `"poi"`. `"ucb"` balances
-#'   predicted performance and uncertainty; `"ei"` searches for the largest
-#'   expected improvement over the current best value; `"poi"` searches for the
-#'   highest probability of improving over the current best value.
-#' @param kappa Finite numeric scalar used for `"ucb"`. Higher values allocate
-#'   more iterations to exploration; lower values make the search more exploitative.
-#' @param eps Finite numeric scalar used for `"ei"` and `"poi"`. It shifts the
-#'   improvement target and can reduce tiny, noisy improvements.
-#' @param fallback Logical scalar. `TRUE` allows the package-native optimizer when
-#'   rBayesianOptimization is unavailable. `FALSE` requires the external backend.
+#' @param acquisition Uma das opções `"ucb"`, `"ei"` ou `"poi"`. `"ucb"`
+#'   equilibra performance prevista e incerteza; `"ei"` busca o maior ganho
+#'   esperado sobre o melhor valor atual; `"poi"` busca a maior probabilidade de
+#'   melhorar o melhor valor atual.
+#' @param kappa Escalar numérico finito usado em `"ucb"`. Valores maiores alocam
+#'   mais iterações para exploração; valores menores tornam a busca mais focada
+#'   em regiões já promissoras.
+#' @param eps Escalar numérico finito usado em `"ei"` e `"poi"`. Desloca o alvo
+#'   de melhoria e pode reduzir a influência de ganhos pequenos e ruidosos.
+#' @param fallback Lógico escalar. `TRUE` permite usar o otimizador nativo do
+#'   pacote quando rBayesianOptimization não está disponível. `FALSE` exige o
+#'   backend externo.
 #'
-#' @return A validated optimizer list with class `tbtb_optimizer`.
+#' @return Lista validada com classe `tbtb_optimizer`, contendo `type`,
+#'   `fallback`, `acquisition`, `kappa` e `eps`.
 #' @export
 TuneBoostTreeOptimizerRBayesianOptimization <- function(acquisition = c("ucb", "ei", "poi"), kappa = 2.576, eps = 0, fallback = TRUE) {
   acquisition <- match.arg(acquisition)
@@ -213,29 +250,30 @@ TuneBoostTreeOptimizerRBayesianOptimization <- function(acquisition = c("ucb", "
   out
 }
 
-#' Build Class-Imbalance Configuration
+#' Montar configuração de desbalanceamento de classes
 #'
 #' @description
-#' Configures optional fold-level balancing and positive-class weighting.
-#' Balancing is applied only to each training partition; validation folds remain
-#' on the original distribution.
+#' Configura balanceamento opcional por fold e ponderação da classe positiva. O
+#' balanceamento é aplicado apenas à partição de treino de cada fold; os folds de
+#' validação permanecem na distribuição original.
 #'
-#' @param balanceFn `NULL` or a function with signature
-#'   `function(data, formula, ...)`. `data` is the current training-fold
-#'   `data.frame`; `formula` is the same two-sided formula supplied to
-#'   [TuneBoostTree()]; `...` receives the extra arguments supplied here. The
-#'   function must return a `data.frame`, tibble, or data.table containing the
-#'   outcome and all predictor columns required by `formula`. It may oversample,
-#'   undersample, synthesize rows, or return `data` unchanged. It should not
-#'   return engine matrices or parameter lists.
-#' @param scale_pos_weight Either `"auto"`, `NULL`, or a positive numeric scalar.
-#'   `"auto"` computes negative/positive class-count ratio per training fold;
-#'   `NULL` disables class weighting; a numeric value fixes the engine
-#'   `scale_pos_weight` for all folds.
-#' @param ... Extra named arguments forwarded only to `balanceFn` after `data`
-#'   and `formula`; they are not passed to XGBoost, LightGBM, or the optimizer.
+#' @param balanceFn `NULL` ou função com assinatura
+#'   `function(data, formula, ...)`. `data` é o `data.frame` do treino do fold;
+#'   `formula` é a mesma fórmula de duas faces fornecida a [TuneBoostTree()];
+#'   `...` recebe os argumentos extras informados nesta função. A função deve
+#'   retornar `data.frame`, tibble ou data.table contendo a variável resposta e
+#'   todos os preditores exigidos por `formula`. Ela pode fazer oversampling,
+#'   undersampling, sintetizar linhas ou retornar `data` sem alteração. Não deve
+#'   retornar matrizes de engine nem listas de parâmetros.
+#' @param scale_pos_weight `"auto"`, `NULL` ou escalar numérico positivo.
+#'   `"auto"` calcula a razão negativos/positivos em cada treino de fold; `NULL`
+#'   desativa ponderação de classe; um número fixa `scale_pos_weight` nas engines.
+#' @param ... Argumentos nomeados extras repassados apenas para `balanceFn`, após
+#'   `data` e `formula`; não são repassados ao XGBoost, ao LightGBM nem ao
+#'   otimizador.
 #'
-#' @return A validated list with class `tbtb_imbalance`.
+#' @return Lista validada com classe `tbtb_imbalance`, contendo `balanceFn`,
+#'   `scale_pos_weight` e `balance_args`.
 #' @export
 TuneBoostTreeImbalance <- function(balanceFn = NULL, scale_pos_weight = "auto", ...) {
   if (!is.null(balanceFn) && !is.function(balanceFn)) cli::cli_abort("`balanceFn` must be a function or `NULL`.")
@@ -250,12 +288,16 @@ TuneBoostTreeImbalance <- function(balanceFn = NULL, scale_pos_weight = "auto", 
   out
 }
 
-#' Build Performance Configuration
+#' Montar configuração de performance
 #'
-#' @param metric Metric optimized during tuning; currently only `"pr_auc"` is supported.
-#' @param backend PR-AUC implementation, one of `"auto"`, `"c"`, `"fortran"`, `"rfast"`, or `"r"`.
+#' @param metric Métrica otimizada durante o tuning. Atualmente apenas `"pr_auc"`
+#'   é suportada.
+#' @param backend Implementação de PR-AUC, uma de `"auto"`, `"c"`,
+#'   `"fortran"`, `"rfast"` ou `"r"`. `"auto"` escolhe a alternativa disponível
+#'   mais rápida e segura.
 #'
-#' @return A validated performance configuration list.
+#' @return Lista validada com classe `tbtb_performance`, contendo `metric` e
+#'   `backend`.
 #' @export
 TuneBoostTreePerformance <- function(metric = "pr_auc", backend = "auto") {
   metric <- match.arg(as.character(metric)[1L], c("pr_auc"))
@@ -265,25 +307,29 @@ TuneBoostTreePerformance <- function(metric = "pr_auc", backend = "auto") {
   out
 }
 
-#' Build Runtime Control Configuration
+#' Montar configuração de controle de execução
 #'
 #' @description
-#' Controls reproducibility, parallel execution, progress messages, and final-fit
-#' fallback behavior for [TuneBoostTree()].
+#' Controla reprodutibilidade, execução paralela, mensagens de progresso e
+#' comportamento de fallback do fit final em [TuneBoostTree()].
 #'
-#' @param seed Integer scalar. Seed used for fold allocation, optimizer
-#'   initialization, candidate sampling, and engine training seeds.
-#' @param parallel Either `"auto"`, `FALSE`, `"sequential"`, or a list from
-#'   [TuneBoostTreeParallel()]. `"auto"` uses fold-level workers when data size
-#'   and CPU budget justify it; `FALSE`/`"sequential"` runs one fold worker and
-#'   gives engine training the available threads.
-#' @param verbose Logical scalar. Use `TRUE` to show high-level start/finish and
-#'   optimizer progress where supported; use `FALSE` to silence package progress.
-#'   Engine-level fit verbosity remains suppressed during CV to keep output compact.
-#' @param fallback_trees Positive integer. Final number of trees used only when
-#'   early stopping cannot recover a valid best iteration from the evaluation log.
+#' @param seed Inteiro escalar. Semente usada na criação dos folds, na
+#'   inicialização do otimizador, na amostragem de candidatos e nos seeds das
+#'   engines.
+#' @param parallel `"auto"`, `FALSE`, `"sequential"` ou lista criada por
+#'   [TuneBoostTreeParallel()]. `"auto"` usa workers por fold quando tamanho dos
+#'   dados e orçamento de CPU justificam; `FALSE`/`"sequential"` usa um worker de
+#'   fold e entrega as threads disponíveis à engine.
+#' @param verbose Lógico escalar. `TRUE` mostra mensagens gerais de início/fim e
+#'   progresso do otimizador quando suportado. `FALSE` silencia o progresso do
+#'   pacote. A verbosidade de engine durante CV permanece suprimida para manter a
+#'   saída compacta.
+#' @param fallback_trees Inteiro positivo. Número final de árvores usado apenas
+#'   quando o `early stopping` não consegue recuperar uma iteração ótima válida
+#'   a partir do log de avaliação.
 #'
-#' @return A validated list with class `tbtb_control`.
+#' @return Lista validada com classe `tbtb_control`, contendo `seed`, `parallel`,
+#'   `verbose` e `fallback_trees`.
 #' @export
 TuneBoostTreeControl <- function(seed = 42L, parallel = "auto", verbose = TRUE, fallback_trees = 100L) {
   out <- list(seed = as.integer(seed), parallel = parallel, verbose = verbose, fallback_trees = as.integer(fallback_trees))
@@ -293,22 +339,23 @@ TuneBoostTreeControl <- function(seed = 42L, parallel = "auto", verbose = TRUE, 
   out
 }
 
-#' Build Explicit Parallel Configuration
+#' Montar configuração explícita de paralelismo
 #'
 #' @description
-#' Describes how [TuneBoostTree()] divides CPU resources between validation-fold
-#' workers and engine threads.
+#' Descreve como [TuneBoostTree()] divide recursos de CPU entre workers de folds
+#' de validação e threads internas da engine.
 #'
-#' @param workers Positive integer or `"auto"`. Number of fold workers. Values
-#'   above the number of folds are capped.
-#' @param threads_per_worker Positive integer or `"auto"`. Engine threads assigned
-#'   to each worker.
-#' @param strategy One of `"auto"`, `"folds"`, `"engine"`, or `"sequential"`.
-#'   `"folds"` prioritizes parallel folds; `"engine"` uses one fold worker and
-#'   more engine threads; `"sequential"` disables fold parallelism; `"auto"`
-#'   chooses a balanced default.
+#' @param workers Inteiro positivo ou `"auto"`. Número de workers de folds.
+#'   Valores acima do número de folds são limitados automaticamente.
+#' @param threads_per_worker Inteiro positivo ou `"auto"`. Número de threads da
+#'   engine atribuído a cada worker.
+#' @param strategy Uma de `"auto"`, `"folds"`, `"engine"` ou `"sequential"`.
+#'   `"folds"` prioriza folds em paralelo; `"engine"` usa um worker de fold e
+#'   mais threads internas de engine; `"sequential"` desativa paralelismo entre
+#'   folds; `"auto"` escolhe uma divisão balanceada.
 #'
-#' @return A validated list with class `tbtb_parallel`.
+#' @return Lista validada com classe `tbtb_parallel`, contendo `workers`,
+#'   `threads_per_worker` e `strategy`.
 #' @export
 TuneBoostTreeParallel <- function(workers = "auto", threads_per_worker = "auto", strategy = c("auto", "folds", "engine", "sequential")) {
   out <- list(workers = workers, threads_per_worker = threads_per_worker, strategy = match.arg(strategy))
@@ -316,21 +363,24 @@ TuneBoostTreeParallel <- function(workers = "auto", threads_per_worker = "auto",
   out
 }
 
-#' Build XGBoost Engine Configuration
+#' Montar configuração da engine XGBoost
 #'
 #' @description
-#' Creates an XGBoost engine block for [TuneBoostTree()]. Hyperparameters are
-#' still supplied with `parsnip::boost_tree()` names and translated internally.
+#' Cria um bloco de engine XGBoost para [TuneBoostTree()]. Os hiperparâmetros
+#' continuam sendo informados com nomes de `parsnip::boost_tree()` e são
+#' traduzidos internamente.
 #'
-#' @param eval_metric Character scalar, `"aucpr"` or `"auc"`. `"aucpr"` aligns
-#'   with the package PR-AUC objective and is preferred for imbalanced data;
-#'   `"auc"` uses ROC-AUC for native early stopping.
-#' @param tree_method Character scalar passed to XGBoost. `"hist"` is the default
-#'   fast histogram algorithm.
-#' @param feature_types Optional character vector of XGBoost feature types aligned
-#'   with predictors, or `NULL` to let XGBoost infer numeric features.
+#' @param eval_metric Texto escalar, `"aucpr"` ou `"auc"`. `"aucpr"` fica
+#'   alinhado ao objetivo PR-AUC do pacote e é preferido em dados desbalanceados;
+#'   `"auc"` usa ROC-AUC no `early stopping` nativo.
+#' @param tree_method Texto escalar repassado ao XGBoost. `"hist"` é o algoritmo
+#'   histogram-based rápido usado como padrão.
+#' @param feature_types Vetor de textos opcional com tipos de features do XGBoost
+#'   alinhados aos preditores, ou `NULL` para inferência padrão de features
+#'   numéricas.
 #'
-#' @return A validated engine list with class `tbtb_engine`.
+#' @return Lista validada com classe `tbtb_engine`, contendo `name = "xgboost"`,
+#'   `eval_metric`, `tree_method` e `feature_types`.
 #' @export
 TuneBoostTreeXgboost <- function(eval_metric = "aucpr", tree_method = "hist", feature_types = NULL) {
   out <- list(name = "xgboost", eval_metric = as.character(eval_metric)[1L], tree_method = as.character(tree_method)[1L], feature_types = feature_types)
@@ -339,17 +389,18 @@ TuneBoostTreeXgboost <- function(eval_metric = "aucpr", tree_method = "hist", fe
   out
 }
 
-#' Build LightGBM Engine Configuration
+#' Montar configuração da engine LightGBM
 #'
 #' @description
-#' Creates a LightGBM engine block for [TuneBoostTree()]. Hyperparameters are
-#' supplied with `parsnip::boost_tree()` names and translated internally.
+#' Cria um bloco de engine LightGBM para [TuneBoostTree()]. Os hiperparâmetros
+#' são informados com nomes de `parsnip::boost_tree()` e traduzidos internamente.
 #'
-#' @param metric Character scalar passed to LightGBM. The default
-#'   `"average_precision"` mirrors PR-AUC-style early stopping for imbalanced
-#'   binary classification.
+#' @param metric Texto escalar repassado ao LightGBM. O padrão
+#'   `"average_precision"` aproxima `early stopping` orientado a PR-AUC em
+#'   classificação binária desbalanceada.
 #'
-#' @return A validated engine list with class `tbtb_engine`.
+#' @return Lista validada com classe `tbtb_engine`, contendo `name = "lightgbm"`,
+#'   `metric` e metadados de features.
 #' @export
 TuneBoostTreeLightgbm <- function(metric = "average_precision") {
   out <- list(name = "lightgbm", metric = as.character(metric)[1L], feature_types = NULL)
@@ -357,73 +408,102 @@ TuneBoostTreeLightgbm <- function(metric = "average_precision") {
   out
 }
 
-#' Build Ultra-Optimized Configuration
+#' Montar configuração ultraotimizada
 #'
-#' @param command Path or PATH command for the Limbo ask/tell executable.
-#' @param strict_limbo Logical; when `TRUE`, Limbo must be configured and executable.
+#' @param command Caminho ou comando no `PATH` para o executável ask/tell do
+#'   Limbo.
+#' @param strict_limbo Lógico escalar. Quando `TRUE`, o Limbo precisa estar
+#'   configurado e executável; quando `FALSE`, fallback é permitido.
 #'
-#' @return A list of configuration blocks for high-performance tuning.
+#' @return Lista de blocos de configuração para tuning de alta performance:
+#'   `boost`, `searchSpace`, `cv`, `optimizer`, `imbalance`, `performance` e
+#'   `control`.
 #' @export
 TuneBoostTreeUltraConfig <- function(command = NULL, strict_limbo = TRUE) {
   list(boost = TuneBoostTreeBoostParams(trees = 1000L, stop_iter = 30L, mtry = 1, max_bin = 256L), searchSpace = TuneBoostTreeSearchSpace(learn_rate = c(0.005, 0.2), tree_depth = c(2L, 12L), min_n = c(1, 80), loss_reduction = c(0, 8), sample_size = c(0.55, 1)), cv = TuneBoostTreeCv(folds = 10L), optimizer = TuneBoostTreeOptimizerLimbo(command = command, fallback = !isTRUE(strict_limbo), acquisition = "ucb", kappa = 2.576, eps = 0), imbalance = TuneBoostTreeImbalance(scale_pos_weight = "auto"), performance = TuneBoostTreePerformance(metric = "pr_auc", backend = "auto"), control = TuneBoostTreeControl(parallel = "auto", verbose = TRUE))
 }
 
-#' Run Ultra-Optimized Bayesian Boosted-Tree Tuning
+#' Executar tuning ultraotimizado de boosted trees
 #'
-#' @param formula A two-sided binary classification formula.
-#' @param data A data.frame, tibble, or data.table containing training rows.
-#' @param initial Integer initial design size or tabular warm-start grid.
-#' @param nIter Integer number of optimizer iterations.
-#' @param engine Either `"xgboost"`, `"lightgbm"`, or an engine configuration.
-#' @param command Path or PATH command for the Limbo ask/tell executable.
-#' @param strict_limbo Logical; when `TRUE`, Limbo must be configured.
+#' @param formula Fórmula de duas faces para classificação binária.
+#' @param data data.frame, tibble ou data.table com as linhas de treino.
+#' @param initial Inteiro com tamanho do desenho inicial ou grade tabular de
+#'   warm-start.
+#' @param nIter Inteiro com número de iterações do otimizador.
+#' @param engine `"xgboost"`, `"lightgbm"` ou uma configuração de engine.
+#' @param command Caminho ou comando no `PATH` para o executável ask/tell do
+#'   Limbo.
+#' @param strict_limbo Lógico escalar. Quando `TRUE`, o Limbo precisa estar
+#'   configurado.
 #'
-#' @return The same result object returned by `TuneBoostTree()`.
+#' @return O mesmo objeto retornado por [TuneBoostTree()]: lista nomeada com
+#'   `bestHyperparameters`, `bestScore`, `bestThreshold`, `initial`,
+#'   `evaluationLog` e `config`.
 #' @export
 TuneBoostTreeBayesianUltra <- function(formula, data, initial = 20L, nIter = 60L, engine = "lightgbm", command = NULL, strict_limbo = TRUE) {
   ultra <- TuneBoostTreeUltraConfig(command = command, strict_limbo = strict_limbo)
   TuneBoostTree(formula = formula, data = data, initial = initial, nIter = nIter, engine = engine, boost = ultra$boost, searchSpace = ultra$searchSpace, cv = ultra$cv, optimizer = ultra$optimizer, imbalance = ultra$imbalance, performance = ultra$performance, control = ultra$control)
 }
 
-#' Tune Gradient Boosted Tree Hyperparameters
+#' Tunar hiperparâmetros de gradient boosted trees
 #'
 #' @description
-#' Tunes binary boosted-tree hyperparameters with cross-validated Bayesian
-#' optimization, early stopping, optional imbalance handling, and XGBoost or
-#' LightGBM engines.
+#' Executa tuning de hiperparâmetros para boosted trees binárias com otimização
+#' Bayesiana, validação cruzada estratificada, `early stopping`, tratamento
+#' opcional de desbalanceamento e engines XGBoost ou LightGBM.
 #'
-#' @param formula Two-sided formula with one binary outcome and numeric predictors.
-#' @param data Non-empty data.frame, tibble, or data.table containing all training
-#'   rows and columns referenced by `formula`.
-#' @param initial `NULL`, non-negative integer, or tabular warm-start grid. An
-#'   integer requests random initial optimizer points. A table must contain
-#'   hyperparameter columns plus `Value`; returned `initial` can be reused here.
-#' @param nIter Non-negative integer. Number of Bayesian optimization iterations
-#'   after initialization.
-#' @param engine Character scalar `"xgboost"`/`"lightgbm"` or an engine block from
-#'   [TuneBoostTreeXgboost()] or [TuneBoostTreeLightgbm()].
-#' @param boost Boosting defaults from [TuneBoostTreeBoostParams()]. Fixed values
-#'   here override optimizer candidates.
-#' @param searchSpace Bayesian search bounds from [TuneBoostTreeSearchSpace()].
-#'   The deprecated name `search_space` is accepted through `...` for compatibility.
-#' @param cv Cross-validation settings from [TuneBoostTreeCv()].
-#' @param optimizer Optimizer settings from
+#' @param formula Fórmula de duas faces com uma variável resposta binária e
+#'   preditores numéricos.
+#' @param data data.frame, tibble ou data.table não vazio contendo todas as linhas
+#'   de treino e colunas referenciadas por `formula`.
+#' @param initial `NULL`, inteiro não negativo ou grade tabular de warm-start. Um
+#'   inteiro solicita pontos iniciais aleatórios do otimizador. Uma tabela deve
+#'   conter colunas de hiperparâmetros e a coluna `Value`; o `initial` retornado
+#'   por uma execução pode ser reutilizado aqui.
+#' @param nIter Inteiro não negativo. Número de iterações de otimização Bayesiana
+#'   após a inicialização.
+#' @param engine Texto escalar `"xgboost"`/`"lightgbm"` ou bloco de engine criado
+#'   por [TuneBoostTreeXgboost()] ou [TuneBoostTreeLightgbm()].
+#' @param boost Padrões de boosting criados por [TuneBoostTreeBoostParams()].
+#'   Valores fixos neste objeto sobrescrevem candidatos do otimizador.
+#' @param searchSpace Limites da busca Bayesiana criados por
+#'   [TuneBoostTreeSearchSpace()]. O nome antigo `search_space` é aceito via
+#'   `...` para compatibilidade.
+#' @param cv Configuração de validação cruzada criada por [TuneBoostTreeCv()].
+#' @param optimizer Configuração de otimizador criada por
 #'   [TuneBoostTreeOptimizerRBayesianOptimization()],
-#'   [TuneBoostTreeOptimizerLimbo()], or [TuneBoostTreeInternalOptimizer()].
-#' @param imbalance Class-imbalance settings from [TuneBoostTreeImbalance()].
-#' @param performance Performance/scoring settings from [TuneBoostTreePerformance()].
-#' @param control Runtime controls from [TuneBoostTreeControl()].
-#' @param ... Compatibility arguments. `search_space` is mapped to `searchSpace`;
-#'   any other name is rejected.
+#'   [TuneBoostTreeOptimizerLimbo()] ou [TuneBoostTreeInternalOptimizer()].
+#' @param imbalance Configuração de desbalanceamento criada por
+#'   [TuneBoostTreeImbalance()].
+#' @param performance Configuração de métrica/scoring criada por
+#'   [TuneBoostTreePerformance()].
+#' @param control Controles de execução criados por [TuneBoostTreeControl()].
+#' @param ... Argumentos de compatibilidade. `search_space` é mapeado para
+#'   `searchSpace`; qualquer outro nome é rejeitado.
 #'
-#' @return A named list containing: `bestHyperparameters`, a list of tuned and
-#'   fixed hyperparameters ready for [FitBoostTreeModel()]; `bestScore`, the best
-#'   mean cross-validated PR-AUC; `bestThreshold`, a list with the selected
-#'   probability threshold, metric, and score; `initial`, a tibble warm-start grid
-#'   with candidate values and `Value`; `evaluationLog`, a tibble with every
-#'   evaluated candidate, PR-AUC `Value`, and `bestIteration`; and `config`, a
-#'   list of resolved engine, boost, searchSpace, cv, optimizer, imbalance,
-#'   performance, control, and parallel settings.
+#' @return Lista nomeada com os seguintes componentes:
+#'
+#'   - `bestHyperparameters`: lista com o melhor conjunto de hiperparâmetros
+#'     encontrado. Inclui os parâmetros tunados, parâmetros fixos de `boost`,
+#'     `trees` escolhido por `early stopping`, `stop_iter`, `eval_metric`,
+#'     `scale_pos_weight` quando aplicável e `threshold` otimizado. É o principal
+#'     objeto a ser passado para [FitBoostTreeModel()].
+#'   - `bestScore`: escalar numérico com o melhor PR-AUC médio de validação
+#'     cruzada. Valores maiores indicam melhor desempenho no objetivo otimizado.
+#'   - `bestThreshold`: lista com `threshold`, `metric` e `score`, calculada a
+#'     partir de probabilidades out-of-fold após a escolha dos hiperparâmetros. O
+#'     `threshold` também é copiado para `bestHyperparameters$threshold`.
+#'   - `initial`: tibble de warm-start com colunas dos hiperparâmetros ativos e
+#'     `Value`. Pode combinar histórico fornecido em `initial` com avaliações
+#'     novas, deduplicando candidatos repetidos e mantendo o melhor `Value`. Pode
+#'     ser reutilizado em uma chamada posterior de [TuneBoostTree()].
+#'   - `evaluationLog`: tibble de auditoria da execução atual. Cada linha contém
+#'     um candidato avaliado, o PR-AUC de validação cruzada em `Value` e
+#'     `bestIteration`, que registra a rodada efetiva selecionada por
+#'     `early stopping` para aquele candidato.
+#'   - `config`: lista com as configurações resolvidas usadas na execução:
+#'     `engine`, `boost`, `searchSpace`, `cv`, `optimizer`, `imbalance`,
+#'     `performance`, `control` e `parallel`.
 #' @export
 TuneBoostTree <- function(formula, data, initial = 10L, nIter = 30L, engine = "lightgbm", boost = TuneBoostTreeBoostParams(), searchSpace = TuneBoostTreeSearchSpace(), cv = TuneBoostTreeCv(), optimizer = TuneBoostTreeOptimizerRBayesianOptimization(), imbalance = TuneBoostTreeImbalance(), performance = TuneBoostTreePerformance(), control = TuneBoostTreeControl(), ...) {
   dots <- list(...)
@@ -1630,15 +1710,17 @@ TuneBoostTree_FindBestIteration <- function(evaluationLog, bestHyperparameters, 
   as.integer(evaluationLog$bestIteration[[which(matched)[1L]]]) # The first matching row provides the stored effective round count.
 }
 
-#' Split Data Into Stratified Boost-Tree Folds
+#' Dividir dados em folds estratificados para boost-tree
 #'
-#' @param yData Integer or logical binary target vector.
-#' @param nFolds Integer number of folds.
-#' @param seed Integer random seed.
+#' @param yData Vetor binário inteiro ou lógico da variável resposta.
+#' @param nFolds Inteiro com número de folds.
+#' @param seed Inteiro usado como semente aleatória.
 #'
-#' @details Public wrapper intended for outer cross-validation or workflows that need the same stratification as the tuner.
+#' @details Wrapper público para validação cruzada externa ou fluxos que precisam
+#'   da mesma estratificação usada pelo tuner.
 #'
-#' @return A list of integer test-index vectors.
+#' @return Lista de vetores inteiros. Cada elemento contém os índices de teste de
+#'   um fold; os índices de treino são obtidos pelo complemento.
 #' @export
 SplitDataBoostTreeFolds <- function(yData, nFolds = 10L, seed = 42L) {
   if (length(yData) == 0L || anyNA(yData)) cli::cli_abort("`yData` must be a non-empty binary vector without NA.") # Public wrapper should fail before producing invalid folds.
@@ -1648,22 +1730,28 @@ SplitDataBoostTreeFolds <- function(yData, nFolds = 10L, seed = 42L) {
   TuneBoostTree_CreateStratifiedFolds(yData, nFolds, seed) # Delegation keeps public and internal fold behavior identical.
 }
 
-#' Fit a Boosted Tree Model
+#' Ajustar modelo boosted tree
 #'
-#' @param formula A two-sided formula with one binary outcome and numeric predictors.
-#' @param dataTrain Training data.frame.
-#' @param hyperparameters Named list from `TuneBoostTree` or equivalent canonical names.
-#' @param featureTypes Optional XGBoost feature type vector.
-#' @param targetLevels Optional two-level target ordering.
-#' @param scalePosWeight Optional positive-class weight; computed when `NULL`.
-#' @param nThreads Integer engine threads.
-#' @param seed Integer random seed.
-#' @param verbose Engine verbosity.
-#' @param engine_boost_tree Engine name, `"xgboost"` or `"lightgbm"`.
+#' @param formula Fórmula de duas faces com uma variável resposta binária e
+#'   preditores numéricos.
+#' @param dataTrain data.frame de treino.
+#' @param hyperparameters Lista nomeada retornada por `TuneBoostTree` ou lista
+#'   equivalente com nomes canônicos de hiperparâmetros.
+#' @param featureTypes Vetor opcional de tipos de features do XGBoost.
+#' @param targetLevels Ordenação opcional de dois níveis da variável resposta.
+#' @param scalePosWeight Peso opcional da classe positiva; é calculado quando
+#'   `NULL`.
+#' @param nThreads Inteiro com número de threads da engine.
+#' @param seed Inteiro usado como semente aleatória.
+#' @param verbose Verbosidade da engine.
+#' @param engine_boost_tree Nome da engine, `"xgboost"` ou `"lightgbm"`.
 #'
-#' @details Trains the final model with canonical hyperparameters and dispatches only at the engine boundary.
+#' @details Ajusta o modelo final com hiperparâmetros canônicos e isola a
+#'   tradução de parâmetros no limite da engine.
 #'
-#' @return A named list containing model object, params, feature metadata, class metadata, rounds, and engine.
+#' @return Lista nomeada com o modelo nativo em `model`, parâmetros efetivamente
+#'   usados em `params`, nomes/tipos de features, níveis e nomes das classes,
+#'   metadados da fórmula, número de rodadas (`nRounds`), `threshold` e `engine`.
 #' @export
 FitBoostTreeModel <- function(formula, dataTrain, hyperparameters, featureTypes = NULL, targetLevels = NULL, scalePosWeight = NULL, nThreads = 8L, seed = 42L, verbose = 0L, engine_boost_tree = "lightgbm") {
   if (!(engine_boost_tree %in% c("xgboost", "lightgbm"))) cli::cli_abort("`engine_boost_tree` must be 'xgboost' or 'lightgbm'.") # Public dispatch must reject unknown engines.
@@ -1685,16 +1773,21 @@ FitBoostTreeModel <- function(formula, dataTrain, hyperparameters, featureTypes 
   list(model = model, params = paramsValue, featureNames = preparedTrain$featureNames, featureTypes = preparedTrain$featureTypes, targetLevels = preparedTrain$targetLevels, targetName = preparedTrain$targetName, negativeClass = preparedTrain$negativeClass, positiveClass = preparedTrain$positiveClass, formulaInfo = preparedTrain$formulaInfo, nRounds = nRounds, threshold = threshold, engine = engine_boost_tree) # The returned object contains everything prediction/performance needs.
 }
 
-#' Predict With a Boosted Tree Model
+#' Predizer com modelo boosted tree
 #'
-#' @param modelObj Model object returned by `FitBoostTreeModel`.
-#' @param newdata New data.frame containing all predictor columns.
-#' @param threshold Positive-class probability threshold.
-#' @param engine_boost_tree Optional engine override; defaults to `modelObj$engine`.
+#' @param modelObj Objeto de modelo retornado por [FitBoostTreeModel()].
+#' @param newdata Novo data.frame contendo todas as colunas preditoras.
+#' @param threshold Limiar de probabilidade da classe positiva. Quando `NULL`,
+#'   usa `modelObj$threshold` se existir; caso contrário, usa `0.5`.
+#' @param engine_boost_tree Override opcional da engine; por padrão usa
+#'   `modelObj$engine`.
 #'
-#' @details Dispatches prediction based on the stored engine and returns class labels plus both class probabilities.
+#' @details Despacha a predição conforme a engine armazenada e retorna classes
+#'   preditas e probabilidades das duas classes.
 #'
-#' @return A tibble with `predictedClass`, `probabilityFirstClass`, and `probabilitySecondClass`.
+#' @return Tibble com `predictedClass`, `probabilityFirstClass` e
+#'   `probabilitySecondClass`. A segunda probabilidade corresponde à classe
+#'   positiva armazenada no modelo.
 #' @export
 PredictBoostTreeModel <- function(modelObj, newdata, threshold = NULL, engine_boost_tree = NULL) {
   if (!is.data.frame(newdata) || nrow(newdata) == 0L) cli::cli_abort("`newdata` must be a non-empty data.frame.") # Public prediction should catch malformed scoring data early.
@@ -1725,15 +1818,17 @@ PredictBoostTreeModel <- function(modelObj, newdata, threshold = NULL, engine_bo
   out # The prediction frame is ready for confusion summaries and user scoring.
 }
 
-#' Evaluate Boosted Tree Performance
+#' Avaliar performance de modelo boosted tree
 #'
-#' @param modelObj Model object returned by `FitBoostTreeModel`.
-#' @param testData Test data.frame containing predictors and outcome.
-#' @param formula A two-sided formula identifying the outcome.
+#' @param modelObj Objeto de modelo retornado por [FitBoostTreeModel()].
+#' @param testData data.frame de teste contendo preditores e variável resposta.
+#' @param formula Fórmula de duas faces que identifica a variável resposta.
 #'
-#' @details Calls `PredictBoostTreeModel` internally and computes PR-AUC plus a confusion summary.
+#' @details Chama [PredictBoostTreeModel()] internamente e calcula PR-AUC e uma
+#'   tabela de confusão resumida.
 #'
-#' @return A list with `prAuc`, `confusionSummary`, and `predictions`.
+#' @return Lista com `prAuc`, `confusionSummary` e `predictions`. `predictions`
+#'   é o tibble retornado por [PredictBoostTreeModel()].
 #' @export
 PerformanceBoostTreeModel <- function(modelObj, testData, formula) {
   predictions <- PredictBoostTreeModel(modelObj, testData) # Reusing the public predictor guarantees identical engine dispatch and output schema.
