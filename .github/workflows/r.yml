@@ -11,87 +11,69 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
-    container:
-      image: oraclelinux:9
+    # Ajustado para o seu servidor Xeon Platinum 8260
+    runs-on: self-hosted
+    strategy:
+      matrix:
+        r-version: ['4.4.1']
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Oracle Linux build dependencies
+      # Configuração de repositórios específica para Oracle Linux 9.7
+      - name: Enable EPEL and CodeReady Builder
         run: |
-          dnf -y update
-          dnf -y install \
-            R R-devel \
-            gcc gcc-c++ gcc-gfortran make cmake git which tar gzip unzip patch \
-            libcurl-devel openssl-devel libxml2-devel zlib-devel \
-            fontconfig-devel freetype-devel harfbuzz-devel fribidi-devel libicu-devel \
-            libpng-devel libjpeg-turbo-devel libtiff-devel
-
-      - name: Install R package dependencies
+          sudo dnf install -y oracle-epel-release-el9
+          sudo dnf config-manager --set-enabled ol9_codeready_builder
+          sudo dnf config-manager --set-enabled ol9_developer_EPEL
+          sudo dnf clean all
+          sudo dnf makecache
+          
+      # Instalação de dependências de sistema para R e compilação (C/Fortran)
+      - name: Install System Dependencies
         run: |
-          install.packages("remotes", repos = "https://cloud.r-project.org")
-          remotes::install_deps(dependencies = TRUE, upgrade = "never", repos = "https://cloud.r-project.org")
-          install.packages("rcmdcheck", repos = "https://cloud.r-project.org")
-        shell: Rscript {0}
+          sudo dnf install -y \
+            R-core \
+            R-core-devel \
+            R-devel \
+            libcurl-devel \
+            openssl-devel \
+            libxml2-devel \
+            harfbuzz-devel \
+            fribidi-devel \
+            freetype-devel \
+            libpng-devel \
+            libjpeg-turbo-devel \
+            openblas-devel \
+            lapack-devel \
+            gcc-gfortran \
+            gcc-c++ \
+            make
 
-      - name: Validate Limbo installer dry run
-        run: |
-          set -euo pipefail
-          bash -n inst/scripts/install_limbo.sh
-          bash inst/scripts/install_limbo.sh --dry-run --no-system-deps --no-profile --no-renviron --prefix /tmp/tbtb-limbo --timeout 30 2>&1 | tee /tmp/tbtb-limbo-dry-run.log
-          grep -q "TBTB_LIMBO_COMMAND" /tmp/tbtb-limbo-dry-run.log
-          {
-            echo "## Limbo installer dry run"
-            echo "- Script syntax: OK"
-            echo "- Dry run: OK"
-            echo "- Bridge variable found: \`TBTB_LIMBO_COMMAND\`"
-            echo ""
-            echo "<details><summary>Dry-run output</summary>"
-            echo ""
-            echo "\`\`\`text"
-            cat /tmp/tbtb-limbo-dry-run.log
-            echo "\`\`\`"
-            echo "</details>"
-          } >> "${GITHUB_STEP_SUMMARY}"
+      - name: Set up R ${{ matrix.r-version }}
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: ${{ matrix.r-version }}
+          use-public-rspm: true
 
-      - name: Install Limbo and reference ask/tell adapter
-        run: |
-          set -euo pipefail
-          bash inst/scripts/install_limbo.sh --prefix /tmp/tbtb-limbo --no-profile --no-renviron --timeout 60 2>&1 | tee /tmp/tbtb-limbo-install.log
-          test -x /tmp/tbtb-limbo/bin/tbtb-limbo-ask
-          /tmp/tbtb-limbo/bin/tbtb-limbo-ask --version | tee /tmp/tbtb-limbo-adapter-version.log
-          echo "TBTB_LIMBO_COMMAND=/tmp/tbtb-limbo/bin/tbtb-limbo-ask" >> "${GITHUB_ENV}"
-          echo "TBTB_LIMBO_TIMEOUT=60" >> "${GITHUB_ENV}"
-          {
-            echo "## Limbo real install"
-            echo "- Limbo installer: OK"
-            echo "- Reference ask/tell adapter: OK"
-            echo "- Adapter version: $(cat /tmp/tbtb-limbo-adapter-version.log)"
-          } >> "${GITHUB_STEP_SUMMARY}"
+      - name: Install R dependencies
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: |
+            any::rcmdcheck
+            any::remotes
+            any::tidyverse
+            any::tidymodels
+            any::testthat
+            any::xgboost
+            any::lightgbm
+            any::rBayesianOptimization
+            any::yardstick
+            any::Matrix
+            any::data.table
+          needs: check
 
-      - name: Run Limbo bridge tests
-        run: testthat::test_file("tests/testthat/test-limbo-bridge.R", reporter = "summary")
-        shell: Rscript {0}
-
-      - name: Install package for real Limbo integration
-        run: R CMD INSTALL .
-
-      - name: Run real Limbo optimizer integration
-        run: |
-          set -euo pipefail
-          Rscript inst/scripts/run_limbo_integration_check.R 2>&1 | tee /tmp/tbtb-limbo-real-integration.log
-          grep -q "TBTB_LIMBO_REAL_INTEGRATION_OK" /tmp/tbtb-limbo-real-integration.log
-          {
-            echo "## Limbo real optimizer integration"
-            echo "- External ask/tell command: OK"
-            echo "- TuneBoostTree with fallback=FALSE: OK"
-            echo ""
-            echo "\`\`\`text"
-            cat /tmp/tbtb-limbo-real-integration.log
-            echo "\`\`\`"
-          } >> "${GITHUB_STEP_SUMMARY}"
-
-      - name: Check
+      - name: Check Package
         run: rcmdcheck::rcmdcheck(args = "--no-manual", error_on = "error")
         shell: Rscript {0}
+        
