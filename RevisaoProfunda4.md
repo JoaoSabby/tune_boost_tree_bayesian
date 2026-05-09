@@ -1,11 +1,3 @@
-<img src="https://r2cdn.perplexity.ai/pplx-full-logo-primary-dark%402x.png" style="height:64px;margin-right:32px"/>
-
-# Faça uma nova conferencia profunda.
-
-Com base na leitura completa e direta do código-fonte atual (SHA `e39da6c`), esta é a conferência profunda final - analisando o estado real, linha por linha, sem depender de análises anteriores.
-
-***
-
 # Conferência Profunda v5 - Estado Real do Código (SHA e39da6c)
 
 ## Confirmações: O Que Está Correto
