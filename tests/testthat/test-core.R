@@ -138,7 +138,7 @@ test_that("O pipeline completo treina, extrai metadados e gera probabilidades co
   best_params <- list(learn_rate = 0.1, tree_depth = 4, min_n = 5, sample_size = 0.8,
                       mtry = 1, loss_reduction = 0, max_bin = 64, trees = 10, stop_iter = 5)
 
-  modelo <- FitBoostTreeModel(y ~ x1 + x2, df, best_params, engine_boost_tree = "xgboost")
+  modelo <- FitBoostTreeModel(y ~ x1 + x2, df, best_params, engineBoostTree = "xgboost")
 
   expect_equal(modelo$positiveClass, "Sim")
   expect_equal(modelo$negativeClass, "Não")
@@ -177,4 +177,26 @@ test_that("Configuração paralela avisa sobre oversubscription manual", {
   )
   expect_equal(resolved$workers, 5L)
   expect_equal(resolved$threads_per_worker, 5L)
+})
+
+
+test_that("APIs públicas aceitam engineBoostTree e migram argumento legado", {
+  df <- data.frame(y = factor(c(rep("neg", 20), rep("pos", 20)), levels = c("neg", "pos")), x = rnorm(40))
+  best_params <- list(learn_rate = 0.1, tree_depth = 2, min_n = 2, sample_size = 1,
+                      mtry = 1, loss_reduction = 0, max_bin = 32, trees = 2)
+
+  modelo <- FitBoostTreeModel(y ~ x, df, best_params, engineBoostTree = "xgboost")
+  expect_equal(modelo$engine, "xgboost")
+
+  expect_warning(
+    modelo_legado <- FitBoostTreeModel(y ~ x, df, best_params, engine_boost_tree = "xgboost"),
+    "deprecated"
+  )
+  expect_equal(modelo_legado$engine, "xgboost")
+
+  expect_warning(
+    preds <- PredictBoostTreeModel(modelo, df[1:3, ], engine_boost_tree = "xgboost"),
+    "deprecated"
+  )
+  expect_equal(nrow(preds), 3L)
 })

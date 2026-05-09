@@ -12,7 +12,8 @@ FitBoostTreeModel(
   nThreads = 8L,
   seed = 42L,
   verbose = 0L,
-  engine_boost_tree = "lightgbm"
+  engineBoostTree = "lightgbm",
+  ...
 )
 }
 \arguments{
@@ -25,7 +26,8 @@ FitBoostTreeModel(
 \item{nThreads}{Inteiro com número de threads da engine.}
 \item{seed}{Inteiro usado como semente aleatória.}
 \item{verbose}{Verbosidade da engine.}
-\item{engine_boost_tree}{Nome da engine, \code{"xgboost"} ou \code{"lightgbm"}.}
+\item{engineBoostTree}{Nome da engine, \code{"xgboost"} ou \code{"lightgbm"}.}
+\item{...}{Argumentos legados. \code{engine_boost_tree} ainda é aceito com aviso de depreciação e será migrado para \code{engineBoostTree}.}
 }
 \description{Ajusta o modelo final LightGBM ou XGBoost com hiperparâmetros canônicos e isola a tradução de parâmetros no limite da engine.}
 \value{Lista nomeada com o modelo nativo em \code{model}, parâmetros efetivamente usados em \code{params}, nomes/tipos de features, níveis e nomes das classes, metadados da fórmula, número de rodadas em \code{nRounds}, \code{threshold} e \code{engine}.}
