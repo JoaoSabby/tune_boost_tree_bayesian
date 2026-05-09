@@ -11,6 +11,10 @@ test_that("Validadores de configuração rejeitam inputs perigosos", {
   expect_error(TuneBoostTreeCv(folds = 1L), "greater than or equal to 2")
   expect_error(TuneBoostTreeOptimizerLimbo(acquisition = ""), "arg")
   expect_error(TuneBoostTreeImbalance(scale_pos_weight = -5), "positive and finite")
+  expect_error(
+    TuneBoostTree(y ~ x1 + x2, data.frame(y = factor(c("neg", "pos"), levels = c("neg", "pos")), x1 = c(0, 1), x2 = c(1, 0)), optimizer = "desconhecido"),
+    "optimizer` as character"
+  )
 })
 
 # 2. Testes de Ingestão e Preparação de Dados
