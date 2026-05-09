@@ -628,7 +628,7 @@ TuneBoostTree <- function(formula, data, initial = 10L, nIter = 30L, engine = "l
       if(engine_boost_tree == "xgboost"){
         balancedFolds[[foldId]] <- list(dtrain = dtrain, dtest = dtest, yTest = preparedTrain$yData[testIndex], scalePosWeight = foldScalePosWeight, featureNames = preparedTrain$featureNames, targetLevels = preparedTrain$targetLevels)
       } else {
-        balancedFolds[[foldId]] <- list(dstrain = dtrain, dstest = dtest, xTest = as.matrix(testMatrix), yTest = preparedTrain$yData[testIndex], scalePosWeight = foldScalePosWeight, featureNames = preparedTrain$featureNames, targetLevels = preparedTrain$targetLevels)
+        balancedFolds[[foldId]] <- list(dstrain = dtrain, dstest = dtest, xTest = TuneBoostTree_AsPredictionMatrix(testMatrix), yTest = preparedTrain$yData[testIndex], scalePosWeight = foldScalePosWeight, featureNames = preparedTrain$featureNames, targetLevels = preparedTrain$targetLevels)
       }
     }
   }
@@ -877,6 +877,29 @@ TuneBoostTree_DetectCpuBudget <- function() {
   if(is.na(physical) || physical < 1L) physical <- logical
   if(is.na(physical) || physical < 1L) physical <- 1L
   as.integer(physical)
+}
+####
+## Fim
+#
+
+#' Configurar espera passiva para OpenMP quando o usuário não definiu política
+#' @noRd
+TuneBoostTree_SetPassiveOpenMp <- function() {
+
+  if(!nzchar(Sys.getenv("OMP_WAIT_POLICY", unset = ""))) Sys.setenv(OMP_WAIT_POLICY = "passive")
+  if(!nzchar(Sys.getenv("GOMP_SPINCOUNT", unset = ""))) Sys.setenv(GOMP_SPINCOUNT = "0")
+  invisible(TRUE)
+}
+####
+## Fim
+#
+
+#' Preparar matriz de predição preservando representação esparsa
+#' @noRd
+TuneBoostTree_AsPredictionMatrix <- function(xMatrix) {
+
+  if(inherits(xMatrix, "sparseMatrix")) return(xMatrix)
+  as.matrix(xMatrix)
 }
 ####
 ## Fim
@@ -1215,7 +1238,6 @@ TuneBoostTree_PrepareBalancedFolds <- function(formula, data, nFolds, balanceFn,
     testData <- data[testIndex, , drop = FALSE] # Objetivo: explicitar a intenção desta etapa para facilitar manutenção e auditoria do fluxo de modelagem.
     balancedTrain <- do.call(balanceFn, c(list(data = trainData, formula = formula), balanceArgs)) # Objetivo: explicitar a intenção desta etapa para facilitar manutenção e auditoria do fluxo de modelagem.
     preparedTrain <- TuneBoostTree_PrepareMatrix(formula, balancedTrain, NULL, preparedFull$targetLevels, formulaInfo) # Objetivo: preservar a semântica das classes para que treino, validação e predição usem a mesma referência binária.
-    if(inherits(preparedTrain$xMatrix, "sparseMatrix")) preparedTrain$xMatrix <- as.matrix(preparedTrain$xMatrix) # Objetivo: entregar às engines uma matriz numérica estável, usando representação esparsa apenas quando isso reduz custo de memória.
     preparedTest <- TuneBoostTree_PrepareMatrix(formula, testData, NULL, preparedTrain$targetLevels, formulaInfo) # Objetivo: preservar a semântica das classes para que treino, validação e predição usem a mesma referência binária.
     trainObject <- TuneBoostTree_CreateDataObject(preparedTrain$xMatrix, preparedTrain$yData, preparedTrain$featureTypes, nThreads, engine_boost_tree) # Objetivo: entregar às engines uma matriz numérica estável, usando representação esparsa apenas quando isso reduz custo de memória.
     testObject <- TuneBoostTree_CreateDataObject(preparedTest$xMatrix, preparedTest$yData, preparedTest$featureTypes, nThreads, engine_boost_tree) # Objetivo: entregar às engines uma matriz numérica estável, usando representação esparsa apenas quando isso reduz custo de memória.
@@ -1223,7 +1245,7 @@ TuneBoostTree_PrepareBalancedFolds <- function(formula, data, nFolds, balanceFn,
     if(engine_boost_tree == "xgboost"){
       balancedFolds[[foldId]] <- list(dtrain = trainObject, dtest = testObject, yTest = preparedTest$yData, scalePosWeight = foldScalePosWeight, featureNames = preparedTrain$featureNames, targetLevels = preparedTrain$targetLevels) # Objetivo: preservar a semântica das classes para que treino, validação e predição usem a mesma referência binária.
     } else {
-      balancedFolds[[foldId]] <- list(dstrain = trainObject, dstest = testObject, xTest = as.matrix(preparedTest$xMatrix), yTest = preparedTest$yData, scalePosWeight = foldScalePosWeight, featureNames = preparedTrain$featureNames, targetLevels = preparedTrain$targetLevels) # Objetivo: preservar a semântica das classes para que treino, validação e predição usem a mesma referência binária.
+      balancedFolds[[foldId]] <- list(dstrain = trainObject, dstest = testObject, xTest = TuneBoostTree_AsPredictionMatrix(preparedTest$xMatrix), yTest = preparedTest$yData, scalePosWeight = foldScalePosWeight, featureNames = preparedTrain$featureNames, targetLevels = preparedTrain$targetLevels) # Objetivo: preservar a semântica das classes para que treino, validação e predição usem a mesma referência binária.
     }
   }
   balancedFolds # Objetivo: manter a validação cruzada reprodutível e estratificada, sem vazamento entre treino e validação.
@@ -1256,6 +1278,7 @@ TuneBoostTree_RunCvManual <- function(balancedFolds, hyperparameters, nRounds, e
   workerThreads <- max(1L, floor(totalCores / nWorkers)) # Objetivo: explicitar a intenção desta etapa para facilitar manutenção e auditoria do fluxo de modelagem.
   workerThreads <- min(as.integer(nThreads), workerThreads) # Objetivo: limitar o paralelismo para acelerar folds sem exceder o orçamento de CPU disponível.
   foldIds <- seq_along(balancedFolds) # Objetivo: manter a validação cruzada reprodutível e estratificada, sem vazamento entre treino e validação.
+  TuneBoostTree_SetPassiveOpenMp()
   if(nWorkers == 1L){
     foldResults <- vector("list", length(foldIds)) # Objetivo: manter a validação cruzada reprodutível e estratificada, sem vazamento entre treino e validação.
     for(i in foldIds) foldResults[[i]] <- TuneBoostTree_RunOneFold(balancedFolds[[i]], hyperparameters, nRounds, earlyStoppingRounds, seed + i, workerThreads, evalMetric, engine_boost_tree, prAucBackend) # Objetivo: manter a validação cruzada reprodutível e estratificada, sem vazamento entre treino e validação.
@@ -1264,7 +1287,7 @@ TuneBoostTree_RunCvManual <- function(balancedFolds, hyperparameters, nRounds, e
     on.exit(parallel::stopCluster(cluster), add = TRUE) # Objetivo: limitar o paralelismo para acelerar folds sem exceder o orçamento de CPU disponível.
     foldResults <- parallel::parLapply(cluster, foldIds, TuneBoostTree_RunFoldById, balancedFolds = balancedFolds, hyperparameters = hyperparameters, nRounds = nRounds, earlyStoppingRounds = earlyStoppingRounds, seed = seed, nThreads = workerThreads, evalMetric = evalMetric, engine_boost_tree = engine_boost_tree, prAucBackend = prAucBackend) # Objetivo: manter a validação cruzada reprodutível e estratificada, sem vazamento entre treino e validação.
   } else {
-    foldResults <- parallel::mclapply(foldIds, TuneBoostTree_RunFoldById, balancedFolds = balancedFolds, hyperparameters = hyperparameters, nRounds = nRounds, earlyStoppingRounds = earlyStoppingRounds, seed = seed, nThreads = workerThreads, evalMetric = evalMetric, engine_boost_tree = engine_boost_tree, prAucBackend = prAucBackend, mc.cores = nWorkers) # Objetivo: manter a validação cruzada reprodutível e estratificada, sem vazamento entre treino e validação.
+    foldResults <- parallel::mclapply(foldIds, TuneBoostTree_RunFoldById, balancedFolds = balancedFolds, hyperparameters = hyperparameters, nRounds = nRounds, earlyStoppingRounds = earlyStoppingRounds, seed = seed, nThreads = workerThreads, evalMetric = evalMetric, engine_boost_tree = engine_boost_tree, prAucBackend = prAucBackend, mc.cores = nWorkers, mc.set.seed = FALSE) # Objetivo: manter a validação cruzada reprodutível e estratificada, sem vazamento entre treino e validação.
   }
   foldScores <- vapply(foldResults, `[[`, numeric(1L), "score") # Objetivo: manter a validação cruzada reprodutível e estratificada, sem vazamento entre treino e validação.
   foldBestIter <- vapply(foldResults, `[[`, integer(1L), "bestIteration") # Objetivo: manter a validação cruzada reprodutível e estratificada, sem vazamento entre treino e validação.
@@ -1298,7 +1321,7 @@ TuneBoostTree_EvaluateCv <- function(...) {
   normalizedData <- TuneBoostTree_NormalizeParams(as.data.frame(hyperparameters[parameterNames], stringsAsFactors = FALSE), parameterNames) # Objetivo: padronizar entradas tabulares para evitar diferenças entre data.frame, tibble e data.table nas etapas seguintes.
   hyperparameters <- as.list(normalizedData[1L, parameterNames, drop = FALSE])
   for(fixedName in setdiff(fixedBoostNames, names(hyperparameters))) hyperparameters[[fixedName]] <- boost[[fixedName]]
-  cacheKey <- paste(unlist(normalizedData[1L, parameterNames, drop = FALSE], use.names = FALSE), collapse = "|") # Objetivo: registrar avaliações e reaproveitar resultados para tornar a otimização auditável e evitar trabalho duplicado.
+  cacheKey <- paste(paste(parameterNames, format(unlist(normalizedData[1L, parameterNames, drop = FALSE], use.names = FALSE), digits = 17L), sep = "="), collapse = "|") # Objetivo: registrar avaliações e reaproveitar resultados para tornar a otimização auditável e evitar trabalho duplicado.
   if(exists(cacheKey, envir = cacheEnv, inherits = FALSE)){
     cachedResult <- get(cacheKey, envir = cacheEnv, inherits = FALSE) # Objetivo: registrar avaliações e reaproveitar resultados para tornar a otimização auditável e evitar trabalho duplicado.
     return(list(Score = as.numeric(cachedResult$score), Pred = 0)) # Objetivo: registrar avaliações e reaproveitar resultados para tornar a otimização auditável e evitar trabalho duplicado.
@@ -1677,6 +1700,7 @@ TuneBoostTree_RunCvPredictions <- function(balancedFolds, hyperparameters, nRoun
   nWorkers <- min(max(1L, as.integer(nWorkersFolds)), length(balancedFolds))
   workerThreads <- min(as.integer(nThreads), max(1L, floor(totalCores / nWorkers)))
   foldIds <- seq_along(balancedFolds)
+  TuneBoostTree_SetPassiveOpenMp()
   if(nWorkers == 1L){
     foldResults <- lapply(foldIds, function(i) TuneBoostTree_RunOneFoldPrediction(balancedFolds[[i]], hyperparameters, nRounds, seed + i, workerThreads, evalMetric, engine_boost_tree))
   } else if(.Platform$OS.type == "windows"){
@@ -1684,7 +1708,7 @@ TuneBoostTree_RunCvPredictions <- function(balancedFolds, hyperparameters, nRoun
     on.exit(parallel::stopCluster(cluster), add = TRUE)
     foldResults <- parallel::parLapply(cluster, foldIds, TuneBoostTree_RunFoldPredictionById, balancedFolds = balancedFolds, hyperparameters = hyperparameters, nRounds = nRounds, seed = seed, nThreads = workerThreads, evalMetric = evalMetric, engine_boost_tree = engine_boost_tree)
   } else {
-    foldResults <- parallel::mclapply(foldIds, TuneBoostTree_RunFoldPredictionById, balancedFolds = balancedFolds, hyperparameters = hyperparameters, nRounds = nRounds, seed = seed, nThreads = workerThreads, evalMetric = evalMetric, engine_boost_tree = engine_boost_tree, mc.cores = nWorkers)
+    foldResults <- parallel::mclapply(foldIds, TuneBoostTree_RunFoldPredictionById, balancedFolds = balancedFolds, hyperparameters = hyperparameters, nRounds = nRounds, seed = seed, nThreads = workerThreads, evalMetric = evalMetric, engine_boost_tree = engine_boost_tree, mc.cores = nWorkers, mc.set.seed = FALSE)
   }
   list(actual = unlist(lapply(foldResults, `[[`, "actual"), use.names = FALSE), predicted = unlist(lapply(foldResults, `[[`, "predicted"), use.names = FALSE))
 }
