@@ -4,6 +4,6 @@
 \alias{TuneBoostTreeControl}
 \title{Montar configuração de controle de execução}
 \usage{TuneBoostTreeControl(seed = 42L, parallel = "auto", verbose = TRUE, fallback_trees = 100L)}
-\arguments{\item{seed}{Inteiro escalar de reprodutibilidade.}\item{parallel}{\code{"auto"}, \code{FALSE}, \code{"sequential"} ou \code{TuneBoostTreeParallel()}.}\item{verbose}{Lógico \code{TRUE}/\code{FALSE}. \code{TRUE} mostra mensagens de alto nível e progresso suportado; \code{FALSE} silencia o pacote.}\item{fallback_trees}{Inteiro positivo usado apenas se a melhor iteração de early stopping não for recuperada.}}
-\value{Lista de classe \code{tbtb_control}.}
-\description{Controla reprodutibilidade, paralelismo, mensagens e fallback do número final de árvores.}
+\arguments{\item{seed}{Inteiro escalar usado para folds, candidatos iniciais, otimizadores e seeds repassadas às engines.}\item{parallel}{\code{"auto"}, \code{FALSE}, \code{"sequential"} ou lista criada por \code{TuneBoostTreeParallel()}. \code{"auto"} divide o orçamento entre folds paralelos e threads internas da engine.}\item{verbose}{Lógico escalar. \code{TRUE} mostra mensagens de alto nível do pacote; \code{FALSE} silencia essas mensagens.}\item{fallback_trees}{Inteiro positivo usado apenas se o pacote não conseguir recuperar uma melhor iteração válida do \code{early stopping}.}}
+\value{Lista validada com classe \code{tbtb_control}, contendo \code{seed}, \code{parallel}, \code{verbose} e \code{fallback_trees}.}
+\description{Controla reprodutibilidade, paralelismo, verbosidade e fallback do número de árvores final em \code{TuneBoostTree()}.}

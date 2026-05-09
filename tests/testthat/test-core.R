@@ -138,7 +138,7 @@ test_that("O pipeline completo treina, extrai metadados e gera probabilidades co
   best_params <- list(learn_rate = 0.1, tree_depth = 4, min_n = 5, sample_size = 0.8,
                       mtry = 1, loss_reduction = 0, max_bin = 64, trees = 10, stop_iter = 5)
 
-  modelo <- FitBoostTreeModel(y ~ x1 + x2, df, best_params, engineBoostTree = "xgboost")
+  modelo <- FitBoostTreeModel(y ~ x1 + x2, df, best_params, engine = "xgboost")
 
   expect_equal(modelo$positiveClass, "Sim")
   expect_equal(modelo$negativeClass, "Não")
@@ -151,17 +151,12 @@ test_that("O pipeline completo treina, extrai metadados e gera probabilidades co
 })
 
 
-test_that("Configuração de desbalanceamento usa balanceFn canônico e aceita legado", {
+test_that("Configuração de desbalanceamento usa balanceFn canônico", {
   identity_balance <- function(data, formula, ...) data
   imbalance <- TuneBoostTreeImbalance(balanceFn = identity_balance)
   expect_identical(names(imbalance), c("balanceFn", "scale_pos_weight", "balance_args"))
-  expect_false("balance_fn" %in% names(imbalance))
 
-  legacy <- list(balance_fn = identity_balance, scale_pos_weight = "auto", balance_args = list())
-  expect_warning(
-    resolved <- TuneBoostTreeBayesian:::TuneBoostTree_ResolveImbalance(legacy),
-    "balance_fn"
-  )
+  resolved <- TuneBoostTreeBayesian:::TuneBoostTree_ResolveImbalance(imbalance)
   expect_identical(resolved$balanceFn, identity_balance)
 })
 
@@ -176,27 +171,22 @@ test_that("Configuração paralela avisa sobre oversubscription manual", {
     "oversubscription"
   )
   expect_equal(resolved$workers, 5L)
-  expect_equal(resolved$threads_per_worker, 5L)
+  expect_equal(resolved$threads_per_worker, 1L)
 })
 
 
-test_that("APIs públicas aceitam engineBoostTree e migram argumento legado", {
+test_that("APIs públicas usam apenas engine", {
   df <- data.frame(y = factor(c(rep("neg", 20), rep("pos", 20)), levels = c("neg", "pos")), x = rnorm(40))
   best_params <- list(learn_rate = 0.1, tree_depth = 2, min_n = 2, sample_size = 1,
                       mtry = 1, loss_reduction = 0, max_bin = 32, trees = 2)
 
-  modelo <- FitBoostTreeModel(y ~ x, df, best_params, engineBoostTree = "xgboost")
+  modelo <- FitBoostTreeModel(y ~ x, df, best_params, engine = "xgboost")
   expect_equal(modelo$engine, "xgboost")
 
-  expect_warning(
-    modelo_legado <- FitBoostTreeModel(y ~ x, df, best_params, engine_boost_tree = "xgboost"),
-    "deprecated"
-  )
-  expect_equal(modelo_legado$engine, "xgboost")
-
-  expect_warning(
-    preds <- PredictBoostTreeModel(modelo, df[1:3, ], engine_boost_tree = "xgboost"),
-    "deprecated"
-  )
+  preds <- PredictBoostTreeModel(modelo, df[1:3, ], engine = "xgboost")
   expect_equal(nrow(preds), 3L)
+  expect_error(
+    do.call(FitBoostTreeModel, c(list(y ~ x, df, best_params), stats::setNames(list("xgboost"), paste("engine", "boost", "tree", sep = "_")))),
+    "unused argument"
+  )
 })

@@ -2,10 +2,8 @@
 % Please edit documentation in R/TuneBoostTreeBayesian.R
 \name{TuneBoostTreeOptimizerLimbo}
 \alias{TuneBoostTreeOptimizerLimbo}
-\alias{TuneBoostTreeLimbo}
 \title{Montar configuração do otimizador Limbo}
-\usage{TuneBoostTreeOptimizerLimbo(command = NULL, fallback = TRUE, acquisition = c("ucb", "ei", "poi"), kappa = 2.576, eps = 0)
-TuneBoostTreeLimbo(command = NULL, fallback = TRUE, acquisition = c("ucb", "ei", "poi"), kappa = 2.576, eps = 0)}
-\arguments{\item{command}{\code{NULL} ou caminho/comando do executável ask/tell do Limbo.}\item{fallback}{Lógico. Permite fallback interno se Limbo falhar.}\item{acquisition}{\code{"ucb"}, \code{"ei"} ou \code{"poi"}; controla exploração/intensificação.}\item{kappa}{Exploração de UCB.}\item{eps}{Margem de melhoria de EI/POI.}}
-\value{Lista de classe \code{tbtb_optimizer}.}
-\description{Configura o otimizador externo Limbo em protocolo ask/tell.}
+\usage{TuneBoostTreeOptimizerLimbo(command = NULL, fallback = TRUE, acquisition = c("ucb", "ei", "poi"), kappa = 2.576, eps = 0)}
+\arguments{\item{command}{\code{NULL} ou texto escalar. Caminho absoluto, relativo ou nome no \code{PATH} para o executável ask/tell do Limbo. \code{NULL} procura \code{TBTB_LIMBO_COMMAND} e depois o diretório \code{bin} do pacote.}\item{fallback}{Lógico escalar. \code{TRUE} permite usar o otimizador interno se o comando não existir, não for executável ou falhar. \code{FALSE} torna o Limbo obrigatório.}\item{acquisition}{Uma de \code{"ucb"}, \code{"ei"} ou \code{"poi"}; controla a função de aquisição usada pelo ask/tell.}\item{kappa}{Número finito usado por UCB. Valores maiores aumentam exploração de regiões incertas.}\item{eps}{Número finito usado por EI/POI como margem mínima de melhoria.}}
+\value{Lista validada com classe \code{tbtb_optimizer}, contendo \code{type = "limbo"}, \code{command}, \code{fallback}, \code{acquisition}, \code{kappa} e \code{eps}.}
+\description{Configura o otimizador externo Limbo em protocolo ask/tell para uso em \code{TuneBoostTree()}.}

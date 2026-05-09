@@ -4,6 +4,6 @@
 \alias{TuneBoostTreePerformance}
 \title{Montar configuração de performance}
 \usage{TuneBoostTreePerformance(metric = "pr_auc", backend = "auto")}
-\arguments{\item{metric}{Texto. Atualmente apenas \code{"pr_auc"}.}\item{backend}{\code{"auto"}, \code{"c"}, \code{"fortran"}, \code{"rfast"} ou \code{"r"}. \code{"auto"} escolhe a implementação disponível mais adequada.}}
-\value{Lista de classe \code{tbtb_performance}.}
-\description{Define a métrica otimizada e o backend de cálculo de PR-AUC.}
+\arguments{\item{metric}{Texto escalar. Atualmente apenas \code{"pr_auc"} é suportado. PR-AUC é indicada para classificação binária desbalanceada por focar qualidade de ranking da classe positiva.}\item{backend}{Uma de \code{"auto"}, \code{"c"}, \code{"fortran"}, \code{"rfast"} ou \code{"r"}. \code{"auto"} escolhe a implementação disponível mais rápida e cai para R puro quando necessário.}}
+\value{Lista validada com classe \code{tbtb_performance}, contendo \code{metric} e \code{backend}.}
+\description{Define a métrica otimizada por \code{TuneBoostTree()} e o backend usado para calcular PR-AUC nas avaliações de validação cruzada.}

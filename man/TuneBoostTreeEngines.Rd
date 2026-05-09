@@ -6,6 +6,6 @@
 \title{Montar configurações de engine}
 \usage{TuneBoostTreeXgboost(eval_metric = "aucpr", tree_method = "hist", feature_types = NULL)
 TuneBoostTreeLightgbm(metric = "average_precision")}
-\arguments{\item{eval_metric}{Para XGBoost, \code{"aucpr"} ou \code{"auc"}.}\item{tree_method}{Método de árvore do XGBoost, padrão \code{"hist"}.}\item{feature_types}{\code{NULL} ou vetor alinhado aos preditores para XGBoost.}\item{metric}{Métrica nativa do LightGBM para early stopping, padrão \code{"average_precision"}.}}
-\value{Lista de classe \code{tbtb_engine}.}
-\description{Criam blocos de engine XGBoost ou LightGBM para \code{TuneBoostTree()}.}
+\arguments{\item{eval_metric}{Para XGBoost, texto escalar \code{"aucpr"} ou \code{"auc"}. \code{"aucpr"} é alinhado ao objetivo PR-AUC do pacote; \code{"auc"} usa ROC-AUC no early stopping nativo.}\item{tree_method}{Método de árvore repassado ao XGBoost. O padrão \code{"hist"} é rápido e eficiente em memória.}\item{feature_types}{\code{NULL} ou vetor de textos alinhado aos preditores, repassado a \code{xgb.DMatrix}.}\item{metric}{Métrica nativa do LightGBM para early stopping. O padrão \code{"average_precision"} é coerente com PR-AUC.}}
+\value{Lista validada com classe \code{tbtb_engine}. XGBoost contém \code{name}, \code{eval_metric}, \code{tree_method} e \code{feature_types}; LightGBM contém \code{name}, \code{metric} e \code{feature_types = NULL}.}
+\description{Criam blocos de engine XGBoost ou LightGBM para \code{TuneBoostTree()}. Hiperparâmetros do modelo permanecem em \code{TuneBoostTreeBoostParams()} e \code{TuneBoostTreeSearchSpace()}.}

@@ -4,7 +4,7 @@ Use this checklist before merging changes, publishing a release, or running long
 
 ## 1. API and argument validation
 
-- [ ] `TuneBoostTreeBayesian()` exposes only high-level arguments: `formula`, `data`, `initial`, `nIter`, `engine`, and configuration blocks.
+- [ ] `TuneBoostTree()` exposes only high-level arguments: `formula`, `data`, `initial`, `nIter`, `engine`, and configuration blocks.
 - [ ] `data` accepts `data.frame`, `tibble`, and `data.table`.
 - [ ] Formula validation fails early for non-two-sided formulas.
 - [ ] Binary target validation confirms both classes exist before training.
@@ -21,7 +21,7 @@ Use this checklist before merging changes, publishing a release, or running long
 - [ ] `mtry` bounds are fractions in `(0, 1]`.
 - [ ] `sample_size` bounds are fractions in `(0, 1]`.
 - [ ] `TuneBoostTreeCv()` rejects invalid fold counts.
-- [ ] `TuneBoostTreeLimbo()` validates acquisition metadata.
+- [ ] `TuneBoostTreeOptimizerLimbo()` validates acquisition metadata.
 - [ ] `TuneBoostTreeImbalance()` accepts only `"auto"`, `NULL`, or positive numeric `scale_pos_weight`.
 - [ ] Every configuration helper that accepts a user function exposes `...` for function-specific arguments.
 - [ ] `TuneBoostTreeUltraConfig()` returns a complete set of valid config lists.
@@ -47,7 +47,7 @@ Use this checklist before merging changes, publishing a release, or running long
 ## 5. Imbalance handling
 
 - [ ] `scale_pos_weight = "auto"` computes majority/minority ratio.
-- [ ] Auto weight is computed after fold balancing when `balance_fn` exists.
+- [ ] Auto weight is computed after fold balancing when `balanceFn` exists.
 - [ ] Numeric `scale_pos_weight` is used exactly as provided.
 - [ ] `scale_pos_weight = NULL` omits the native class-weight parameter.
 - [ ] Balance function arguments in `...` are forwarded exactly once per fold.

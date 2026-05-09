@@ -4,6 +4,6 @@
 \alias{TuneBoostTreeUltraConfig}
 \title{Montar configuração ultraotimizada}
 \usage{TuneBoostTreeUltraConfig(command = NULL, strict_limbo = TRUE)}
-\arguments{\item{command}{Comando/caminho do Limbo.}\item{strict_limbo}{Lógico; \code{TRUE} exige Limbo funcional, \code{FALSE} permite fallback.}}
-\value{Lista com blocos \code{boost}, \code{searchSpace}, \code{cv}, \code{optimizer}, \code{imbalance}, \code{performance} e \code{control}.}
-\description{Monta um perfil opinativo de alto desempenho para \code{TuneBoostTree()}.}
+\arguments{\item{command}{\code{NULL} ou caminho/comando do executável ask/tell do Limbo, repassado para \code{TuneBoostTreeOptimizerLimbo()}.}\item{strict_limbo}{Lógico escalar. \code{TRUE} exige Limbo funcional usando \code{fallback = FALSE}; \code{FALSE} permite fallback para o otimizador interno.}}
+\value{Lista nomeada com os blocos \code{boost}, \code{searchSpace}, \code{cv}, \code{optimizer}, \code{imbalance}, \code{performance} e \code{control}, pronta para uso em \code{TuneBoostTree()}.}
+\description{Monta um perfil opinativo de alto desempenho: mais árvores, \code{stop_iter} maior, \code{mtry = 1}, \code{max_bin = 256}, Limbo como otimizador preferencial, PR-AUC e paralelismo automático.}

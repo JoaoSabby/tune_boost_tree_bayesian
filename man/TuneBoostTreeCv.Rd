@@ -4,6 +4,6 @@
 \alias{TuneBoostTreeCv}
 \title{Montar configuração de validação cruzada}
 \usage{TuneBoostTreeCv(folds = 10L, stratified = TRUE)}
-\arguments{\item{folds}{Inteiro >= 2. Número desejado de folds; pode ser reduzido internamente se a classe minoritária tiver poucas observações.}\item{stratified}{Lógico escalar. Deve ser \code{TRUE}. Preserva aproximadamente a proporção de classes; \code{FALSE} é rejeitado porque PR-AUC pode ficar inválida em folds sem positivos.}}
+\arguments{\item{folds}{Inteiro >= 2. Número desejado de folds; pode ser reduzido internamente se a classe minoritária tiver poucas observações.}\item{stratified}{Lógico escalar. Deve ser \code{TRUE}. Preserva aproximadamente a proporção de classes; \code{FALSE} gera erro imediato porque PR-AUC pode ficar inválida em folds sem positivos.}}
 \value{Lista de classe \code{tbtb_cv} com \code{folds} e \code{stratified}.}
 \description{Configura a reamostragem estratificada binária usada por \code{TuneBoostTree()}.}
