@@ -11,13 +11,21 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-latest
+    # Altere "self-hosted" para as tags exatas configuradas no seu servidor local
+    runs-on: self-hosted
     strategy:
       matrix:
         r-version: ['4.4.1']
 
     steps:
       - uses: actions/checkout@v4
+
+      # Etapa obrigatória para Oracle Linux 9.7: habilitar EPEL e CRB
+      - name: Enable EPEL and CodeReady Builder
+        run: |
+          sudo dnf install -y epel-release
+          sudo dnf config-manager --set-enabled ol9_codeready_builder
+          sudo dnf install -y libcurl-devel libxml2-devel openssl-devel harfbuzz-devel fribidi-devel freetype-devel libpng-devel libjpeg-turbo-devel openblas-devel lapack-devel
 
       - name: Set up R ${{ matrix.r-version }}
         uses: r-lib/actions/setup-r@v2
