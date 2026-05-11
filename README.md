@@ -295,7 +295,7 @@ As funções públicas `FitBoostTreeModel()`, `PredictBoostTreeModel()` e `Split
 
 ## Distribuição compilada do pacote
 
-O pacote é distribuível como pacote R binário/source padrão. O `DESCRIPTION` define `ByteCompile: true`, então o código R é byte-compilado na instalação, e as rotinas nativas C/Fortran em `src/` são compiladas na biblioteca compartilhada do pacote. O arquivo-fonte `R/TuneBoostTreeBayesian.R` continua no repositório para auditoria, manutenção e reinstalação reproduzível. Para ativar JIT nível 3 na sessão de execução, use `compiler::enableJIT(3)` antes de carregar/rodar o pacote; isso é mantido explícito para evitar alterar configurações globais do R sem consentimento.
+O pacote é distribuível como pacote R binário/source padrão. O `DESCRIPTION` define `ByteCompile: true`, então o código R é byte-compilado na instalação, e as rotinas nativas C/Fortran em `src/` são compiladas na biblioteca compartilhada do pacote. Os arquivos-fonte em `R/` mantêm uma função por arquivo para auditoria, manutenção e reinstalação reproduzível. Para ativar JIT nível 3 na sessão de execução, use `compiler::enableJIT(3)` antes de carregar/rodar o pacote; isso é mantido explícito para evitar alterar configurações globais do R sem consentimento.
 
 Para criar um artefato de instalação local no servidor dedicado:
 
