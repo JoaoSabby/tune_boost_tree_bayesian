@@ -31,7 +31,7 @@ TuneBoostTree_TestFakeLimbo <- function() {
 
 TuneBoostTree_TestOptimizer <- function(backend) {
 
-  if(identical(backend, "limbo")){
+  if(identical(backend, "limbo")) {
     return(
       TuneBoostTreeOptimizerLimbo(
         command = TuneBoostTree_TestFakeLimbo(),
@@ -75,10 +75,10 @@ TuneBoostTree_TestMetrics <- function(model, testData) {
 
 TuneBoostTree_RunEngineIntegration <- function(engineName, backendName) {
 
-  if(identical(engineName, "xgboost")){
+  if(identical(engineName, "xgboost")) {
     skip_if_not_installed("xgboost")
   }
-  if(identical(engineName, "lightgbm")){
+  if(identical(engineName, "lightgbm")) {
     skip_if_not_installed("lightgbm")
   }
   dataSplit <- TuneBoostTree_TestBinaryData()

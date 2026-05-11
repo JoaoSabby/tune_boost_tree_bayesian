@@ -45,23 +45,23 @@ SEXP tbtb_pr_auc_c(SEXP actual_sexp, SEXP predicted_sexp) {
 
   qsort(pairs, (size_t)n, sizeof(TbtbPair), tbtb_compare_pair);
 
-  double score = 0.0;
-  double tp = 0.0;
-  double fp = 0.0;
-  double last_recall = 0.0;
-  const double positive_count = (double)positives;
+  long double score = 0.0L;
+  long double tp = 0.0L;
+  long double fp = 0.0L;
+  long double last_recall = 0.0L;
+  const long double positive_count = (long double)positives;
 
   for (R_xlen_t i = 0; i < n; ++i) {
     if (pairs[i].actual == 1) {
-      tp += 1.0;
+      tp += 1.0L;
     } else {
-      fp += 1.0;
+      fp += 1.0L;
     }
-    const double recall = tp / positive_count;
-    const double precision = tp / (tp + fp);
+    const long double recall = tp / positive_count;
+    const long double precision = tp / (tp + fp);
     score += (recall - last_recall) * precision;
     last_recall = recall;
   }
 
-  return ScalarReal(score);
+  return ScalarReal((double)score);
 }

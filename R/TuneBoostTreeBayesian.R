@@ -69,6 +69,7 @@
 #'   `stop_iter`, `learn_rate`, `tree_depth`, `min_n`, `loss_reduction`,
 #'   `sample_size`, `mtry` e `max_bin`.
 #' @export
+
 TuneBoostTreeBoostParams <- function(
   trees = 500L,
   stop_iter = 20L,
@@ -81,29 +82,29 @@ TuneBoostTreeBoostParams <- function(
   max_bin = NULL
 ) {
 
-  if(is.character(mtry) && identical(mtry[1L], "default")){
+  if(is.character(mtry) && identical(mtry[1L], "default")) {
     mtryValue <- "default"
   } else {
     mtryValue <- mtry
   }
   out <- list(
-    trees = as.integer(trees),
-    stop_iter = as.integer(stop_iter),
-    learn_rate = learn_rate,
-    tree_depth = tree_depth,
-    min_n = min_n,
+    trees          = as.integer(trees),
+    stop_iter      = as.integer(stop_iter),
+    learn_rate     = learn_rate,
+    tree_depth     = tree_depth,
+    min_n          = min_n,
     loss_reduction = loss_reduction,
-    sample_size = sample_size,
-    mtry = mtryValue,
-    max_bin = max_bin
+    sample_size    = sample_size,
+    mtry           = mtryValue,
+    max_bin        = max_bin
   )
-  if(length(out$trees) != 1L || is.na(out$trees) || out$trees < 1L){
+  if(length(out$trees) != 1L || is.na(out$trees) || out$trees < 1L) {
     cli::cli_abort("`trees` must be a positive integer.")
   }
-  if(length(out$stop_iter) != 1L || is.na(out$stop_iter) || out$stop_iter < 1L){
+  if(length(out$stop_iter) != 1L || is.na(out$stop_iter) || out$stop_iter < 1L) {
     cli::cli_abort("`stop_iter` must be a positive integer.")
   }
-  if(is.character(out$mtry) && !identical(out$mtry, "default")){
+  if(is.character(out$mtry) && !identical(out$mtry, "default")) {
     cli::cli_abort("`mtry` as character must be exactly 'default'.")
   }
   class(out) <- c("tbtb_boost_params", "list")
@@ -187,6 +188,7 @@ TuneBoostTreeBoostParams <- function(
 #'   vetor numérico `c(lower, upper)` finito e crescente. Elementos `NULL` são
 #'   removidos e não são otimizados.
 #' @export
+
 TuneBoostTreeSearchSpace <- function(
   learn_rate = c(0.01, 0.2),
   tree_depth = c(2L, 12L),
@@ -206,36 +208,36 @@ TuneBoostTreeSearchSpace <- function(
 ) {
 
   out <- list(
-    learn_rate = learn_rate,
-    tree_depth = tree_depth,
-    min_n = min_n,
-    sample_size = sample_size,
-    mtry = mtry,
-    loss_reduction = loss_reduction,
-    max_bin = max_bin,
-    lambda = lambda,
-    alpha = alpha,
-    max_delta_step = max_delta_step,
-    colsample_bytree = colsample_bytree,
+    learn_rate        = learn_rate,
+    tree_depth        = tree_depth,
+    min_n             = min_n,
+    sample_size       = sample_size,
+    mtry              = mtry,
+    loss_reduction    = loss_reduction,
+    max_bin           = max_bin,
+    lambda            = lambda,
+    alpha             = alpha,
+    max_delta_step    = max_delta_step,
+    colsample_bytree  = colsample_bytree,
     colsample_bylevel = colsample_bylevel,
-    num_leaves = num_leaves,
-    min_data_in_leaf = min_data_in_leaf,
-    scale_pos_weight = scale_pos_weight
+    num_leaves        = num_leaves,
+    min_data_in_leaf  = min_data_in_leaf,
+    scale_pos_weight  = scale_pos_weight
   )
   out <- out[!vapply(out, is.null, logical(1L))]
-  for(parameterName in names(out)){
+  for(parameterName in names(out)) {
     value <- as.numeric(out[[parameterName]])
-    if(length(value) != 2L || anyNA(value) || any(!is.finite(value)) || value[1L] >= value[2L]){
+    if(length(value) != 2L || anyNA(value) || any(!is.finite(value)) || value[1L] >= value[2L]) {
       cli::cli_abort("Search-space entry `{parameterName}` must contain finite increasing lower/upper bounds.")
     }
     out[[parameterName]] <- value
   }
-  for(fractionName in intersect(c("mtry", "sample_size", "colsample_bytree", "colsample_bylevel"), names(out))){
-    if(out[[fractionName]][1L] <= 0 || out[[fractionName]][2L] > 1){
+  for(fractionName in intersect(c("mtry", "sample_size", "colsample_bytree", "colsample_bylevel"), names(out))) {
+    if(out[[fractionName]][1L] <= 0 || out[[fractionName]][2L] > 1) {
       cli::cli_abort("`{fractionName}` search bounds must be fractions in `(0, 1]`.")
     }
   }
-  if("scale_pos_weight" %in% names(out) && out$scale_pos_weight[1L] <= 0){
+  if("scale_pos_weight" %in% names(out) && out$scale_pos_weight[1L] <= 0) {
     cli::cli_abort("`scale_pos_weight` search bounds must be positive.")
   }
   class(out) <- c("tbtb_search_space", "list")
@@ -270,13 +272,14 @@ TuneBoostTreeSearchSpace <- function(
 #'   O valor de `folds` pode ser ajustado no objeto `config$cv` retornado por
 #'   [TuneBoostTree()] quando a contagem da classe minoritária exigir redução.
 #' @export
+
 TuneBoostTreeCv <- function(folds = 10L, stratified = TRUE) {
 
   out <- list(folds = as.integer(folds), stratified = isTRUE(stratified))
-  if(length(out$folds) != 1L || is.na(out$folds) || out$folds < 2L){
+  if(length(out$folds) != 1L || is.na(out$folds) || out$folds < 2L) {
     cli::cli_abort("`folds` must be an integer greater than or equal to 2.")
   }
-  if(!out$stratified){
+  if(!out$stratified) {
     cli::cli_abort("Only stratified binary folds are currently supported; use `stratified = TRUE`.")
   }
   class(out) <- c("tbtb_cv", "list")
@@ -319,6 +322,7 @@ TuneBoostTreeCv <- function(folds = 10L, stratified = TRUE) {
 #' @return Lista validada com classe `tbtb_optimizer`, contendo `type = "limbo"`,
 #'   `command`, `fallback`, `acquisition`, `kappa` e `eps`.
 #' @export
+
 TuneBoostTreeOptimizerLimbo <- function(
   command = NULL,
   fallback = TRUE,
@@ -337,7 +341,7 @@ TuneBoostTreeOptimizerLimbo <- function(
     kappa = as.numeric(kappa)[1L],
     eps = as.numeric(eps)[1L]
   )
-  if(!is.finite(out$kappa) || !is.finite(out$eps)){
+  if(!is.finite(out$kappa) || !is.finite(out$eps)) {
     cli::cli_abort("`kappa` and `eps` must be finite numerics.")
   }
   class(out) <- c("tbtb_optimizer", "list")
@@ -362,6 +366,7 @@ TuneBoostTreeOptimizerLimbo <- function(
 #'   mantêm a mesma estrutura dos demais otimizadores para simplificar o fluxo da
 #'   função principal.
 #' @export
+
 TuneBoostTreeInternalOptimizer <- function() {
 
   out <- list(
@@ -413,6 +418,7 @@ TuneBoostTreeInternalOptimizer <- function() {
 #'   "rBayesianOptimization"`, `command`, `fallback`, `acquisition`, `kappa` e
 #'   `eps`.
 #' @export
+
 TuneBoostTreeOptimizerRBayesianOptimization <- function(
   acquisition = c("ucb", "ei", "poi"),
   kappa = 2.576,
@@ -429,7 +435,7 @@ TuneBoostTreeOptimizerRBayesianOptimization <- function(
     kappa = as.numeric(kappa)[1L],
     eps = as.numeric(eps)[1L]
   )
-  if(!is.finite(out$kappa) || !is.finite(out$eps)){
+  if(!is.finite(out$kappa) || !is.finite(out$eps)) {
     cli::cli_abort("`kappa` and `eps` must be finite numerics.")
   }
   class(out) <- c("tbtb_optimizer", "list")
@@ -475,18 +481,19 @@ TuneBoostTreeOptimizerRBayesianOptimization <- function(
 #' @return Lista validada com classe `tbtb_imbalance`, contendo `balanceFn`,
 #'   `scale_pos_weight` e `balance_args`.
 #' @export
+
 TuneBoostTreeImbalance <- function(balanceFn = NULL, scale_pos_weight = "auto", ...) {
 
-  if(!is.null(balanceFn) && !is.function(balanceFn)){
+  if(!is.null(balanceFn) && !is.function(balanceFn)) {
     cli::cli_abort("`balanceFn` must be a function or `NULL`.")
   }
-  if(is.character(scale_pos_weight)){
-    if(!identical(scale_pos_weight, "auto")){
+  if(is.character(scale_pos_weight)) {
+    if(!identical(scale_pos_weight, "auto")) {
       cli::cli_abort("`scale_pos_weight` must be `\"auto\"`, `NULL`, or a positive numeric scalar.")
     }
-  } else if(!is.null(scale_pos_weight)){
+  } else if(!is.null(scale_pos_weight)) {
     scale_pos_weight <- as.numeric(scale_pos_weight)[1L]
-    if(!is.finite(scale_pos_weight) || scale_pos_weight <= 0){
+    if(!is.finite(scale_pos_weight) || scale_pos_weight <= 0) {
       cli::cli_abort("Numeric `scale_pos_weight` must be positive and finite.")
     }
   }
@@ -522,6 +529,7 @@ TuneBoostTreeImbalance <- function(balanceFn = NULL, scale_pos_weight = "auto", 
 #' @return Lista validada com classe `tbtb_performance`, contendo `metric` e
 #'   `backend`.
 #' @export
+
 TuneBoostTreePerformance <- function(metric = "pr_auc", backend = "auto") {
 
   metric <- match.arg(as.character(metric)[1L], c("pr_auc"))
@@ -569,18 +577,19 @@ TuneBoostTreePerformance <- function(metric = "pr_auc", backend = "auto") {
 #' @return Lista validada com classe `tbtb_control`, contendo `seed`, `parallel`,
 #'   `verbose` e `fallback_trees`.
 #' @export
+
 TuneBoostTreeControl <- function(seed = 42L, parallel = "auto", verbose = TRUE, fallback_trees = 100L) {
 
   out <- list(
-    seed = as.integer(seed),
-    parallel = parallel,
-    verbose = verbose,
+    seed           = as.integer(seed),
+    parallel       = parallel,
+    verbose        = verbose,
     fallback_trees = as.integer(fallback_trees)
   )
-  if(length(out$seed) != 1L || is.na(out$seed)){
+  if(length(out$seed) != 1L || is.na(out$seed)) {
     cli::cli_abort("`seed` must be a scalar integer.")
   }
-  if(length(out$fallback_trees) != 1L || is.na(out$fallback_trees) || out$fallback_trees < 1L){
+  if(length(out$fallback_trees) != 1L || is.na(out$fallback_trees) || out$fallback_trees < 1L) {
     cli::cli_abort("`fallback_trees` must be a positive integer.")
   }
   class(out) <- c("tbtb_control", "list")
@@ -613,6 +622,7 @@ TuneBoostTreeControl <- function(seed = 42L, parallel = "auto", verbose = TRUE, 
 #' @return Lista validada com classe `tbtb_parallel`, contendo `workers`,
 #'   `threads_per_worker` e `strategy`.
 #' @export
+
 TuneBoostTreeParallel <- function(
   workers = "auto",
   threads_per_worker = "auto",
@@ -655,6 +665,7 @@ TuneBoostTreeParallel <- function(
 #' @return Lista validada com classe `tbtb_engine`, contendo `name = "xgboost"`,
 #'   `eval_metric`, `tree_method` e `feature_types`.
 #' @export
+
 TuneBoostTreeXgboost <- function(eval_metric = "aucpr", tree_method = "hist", feature_types = NULL) {
 
   out <- list(
@@ -663,7 +674,7 @@ TuneBoostTreeXgboost <- function(eval_metric = "aucpr", tree_method = "hist", fe
     tree_method = as.character(tree_method)[1L],
     feature_types = feature_types
   )
-  if(!(out$eval_metric %in% c("aucpr", "auc"))){
+  if(!(out$eval_metric %in% c("aucpr", "auc"))) {
     cli::cli_abort("`eval_metric` must be 'aucpr' or 'auc' for XGBoost.")
   }
   class(out) <- c("tbtb_engine", "list")
@@ -690,6 +701,7 @@ TuneBoostTreeXgboost <- function(eval_metric = "aucpr", tree_method = "hist", fe
 #' @return Lista validada com classe `tbtb_engine`, contendo `name = "lightgbm"`,
 #'   `metric` e `feature_types = NULL`.
 #' @export
+
 TuneBoostTreeLightgbm <- function(metric = "average_precision") {
 
   out <- list(name = "lightgbm", metric = as.character(metric)[1L], feature_types = NULL)
@@ -719,6 +731,7 @@ TuneBoostTreeLightgbm <- function(metric = "average_precision") {
 #'   `imbalance`, `performance` e `control`, todos prontos para uso em
 #'   [TuneBoostTree()].
 #' @export
+
 TuneBoostTreeUltraConfig <- function(command = NULL, strict_limbo = TRUE) {
 
   list(
@@ -779,6 +792,7 @@ TuneBoostTreeUltraConfig <- function(command = NULL, strict_limbo = TRUE) {
 #'   `bestHyperparameters`, `bestScore`, `bestThreshold`, `initial` (tibble),
 #'   `evaluationLog` (tibble) e `config`.
 #' @export
+
 TuneBoostTreeBayesianUltra <- function(
   formula,
   data,
@@ -895,6 +909,7 @@ TuneBoostTreeBayesianUltra <- function(
 #'   Todas as tabelas retornadas diretamente pela função (`initial` e
 #'   `evaluationLog`) são tibbles.
 #' @export
+
 TuneBoostTree <- function(
   formula,
   data,
@@ -910,10 +925,10 @@ TuneBoostTree <- function(
   control = TuneBoostTreeControl()
 ) {
 
-  if(!inherits(formula, "formula") || length(formula) != 3L){
+  if(!inherits(formula, "formula") || length(formula) != 3L) {
     cli::cli_abort("`formula` must be a two-sided formula.")
   }
-  if(!is.data.frame(data) || nrow(data) == 0L){
+  if(!is.data.frame(data) || nrow(data) == 0L) {
     cli::cli_abort("`data` must be a non-empty data.frame, tibble, or data.table.")
   }
   data <- as.data.frame(data)
@@ -930,7 +945,7 @@ TuneBoostTree <- function(
   initGridDt <- initialState$initGridDt
   initPoints <- initialState$initPoints
   nIter <- as.integer(nIter)
-  if(length(nIter) != 1L || is.na(nIter) || nIter < 0L){
+  if(length(nIter) != 1L || is.na(nIter) || nIter < 0L) {
     cli::cli_abort("`nIter` must be a non-negative integer.")
   }
 
@@ -953,11 +968,11 @@ TuneBoostTree <- function(
   prAucBackend <- TuneBoostTree_SelectPrAucBackend(performance$backend)
   engineConfig <- engine
   engine <- engineConfig$name
-  if(identical(engine, "lightgbm") && nWorkersFolds > 1L){
+  if(identical(engine, "lightgbm") && nWorkersFolds > 1L) {
     workerThreads <- max(1L, as.integer(workerThreads) * as.integer(nWorkersFolds))
     nWorkersFolds <- 1L
   }
-  if(engine == "xgboost"){
+  if(engine == "xgboost") {
     evalMetric <- engineConfig$eval_metric
   } else {
     evalMetric <- engineConfig$metric
@@ -966,7 +981,7 @@ TuneBoostTree <- function(
 
   balanceFn <- imbalance$balanceFn
   useBalancedCv <- !is.null(balanceFn)
-  if(useBalancedCv){
+  if(useBalancedCv) {
     balancedFolds <- TuneBoostTree_PrepareBalancedFolds(
       formula,
       data,
@@ -990,7 +1005,7 @@ TuneBoostTree <- function(
       formulaInfo
     )
     classCounts <- table(preparedTrain$yData)
-    if(length(classCounts) != 2L || any(classCounts == 0L)){
+    if(length(classCounts) != 2L || any(classCounts == 0L)) {
       cli::cli_abort("`data` must contain both binary classes.")
     }
     scalePosWeightValue <- TuneBoostTree_ResolveScalePosWeight(
@@ -999,7 +1014,7 @@ TuneBoostTree <- function(
     )
     folds <- TuneBoostTree_CreateStratifiedFolds(preparedTrain$yData, nFolds, seed)
     balancedFolds <- vector("list", length(folds))
-    for(foldId in seq_along(folds)){
+    for(foldId in seq_along(folds)) {
       testIndex <- folds[[foldId]]
       trainIndex <- setdiff(seq_len(nrow(data)), testIndex)
       trainMatrix <- preparedTrain$xMatrix[trainIndex, , drop = FALSE]
@@ -1024,7 +1039,7 @@ TuneBoostTree <- function(
 
   cacheEnv <- new.env(parent = emptyenv())
   on.exit({
-    if(exists("cacheEnv", inherits = FALSE) && is.environment(cacheEnv)){
+    if(exists("cacheEnv", inherits = FALSE) && is.environment(cacheEnv)) {
       rm(list = ls(envir = cacheEnv, all.names = TRUE), envir = cacheEnv)
     }
   }, add = TRUE)
@@ -1036,7 +1051,7 @@ TuneBoostTree <- function(
   objective <- TuneBoostTree_EvaluateCv
   environment(objective) <- environment()
 
-  if(isTRUE(control$verbose)){
+  if(isTRUE(control$verbose)) {
     cli::cli_inform(paste0(
       "Starting {.val {engine}} Bayesian tuning with {.val {nRoundsTuning}} trees, ",
       "{.val {earlyStoppingRounds}} stop_iter, and {.val {nWorkersFolds}} fold worker(s)."
@@ -1059,7 +1074,7 @@ TuneBoostTree <- function(
     limboFallback = optimizer$fallback
   )
 
-  if(logIndex > 0L){
+  if(logIndex > 0L) {
     evaluationLog <- TuneBoostTree_AsTibble(
       data.table::rbindlist(evaluationLogList[seq_len(logIndex)], fill = TRUE)
     )
@@ -1071,7 +1086,7 @@ TuneBoostTree <- function(
     names(boost)[!vapply(boost, is.null, logical(1L))],
     c("trees", "stop_iter")
   )
-  for(fixedName in setdiff(fixedBoostNames, names(bestHyperparameters))){
+  for(fixedName in setdiff(fixedBoostNames, names(bestHyperparameters))) {
     bestHyperparameters[[fixedName]] <- boost[[fixedName]]
   }
   bestScore <- as.numeric(tuningResult$Best_Value)
@@ -1081,7 +1096,7 @@ TuneBoostTree <- function(
     bestScore,
     bounds
   )
-  if(is.null(bestIteration)){
+  if(is.null(bestIteration)) {
     bestSummary <- TuneBoostTree_RunCvManual(
       balancedFolds,
       bestHyperparameters,
@@ -1096,13 +1111,13 @@ TuneBoostTree <- function(
     )
     bestIteration <- as.integer(bestSummary$bestIteration)
   }
-  if(is.null(bestIteration) || is.na(bestIteration) || bestIteration < 1L){
+  if(is.null(bestIteration) || is.na(bestIteration) || bestIteration < 1L) {
     bestIteration <- as.integer(control$fallback_trees)
   }
   bestHyperparameters$trees <- as.integer(bestIteration)
   bestHyperparameters$stop_iter <- as.integer(earlyStoppingRounds)
   bestHyperparameters$eval_metric <- evalMetric
-  if(!useBalancedCv && is.null(bestHyperparameters$scale_pos_weight)){
+  if(!useBalancedCv && is.null(bestHyperparameters$scale_pos_weight)) {
     bestHyperparameters$scale_pos_weight <- scalePosWeightValue
   }
   bestThresholdSummary <- TuneBoostTree_OptimizeThresholdCv(
@@ -1122,7 +1137,7 @@ TuneBoostTree <- function(
   returnedInitGridDt <- TuneBoostTree_AsTibble(
     TuneBoostTree_CombineInitGrid(initGridDt, newInitGridDt, bounds)
   )
-  if(isTRUE(control$verbose)){
+  if(isTRUE(control$verbose)) {
     cli::cli_inform("Finished Bayesian tuning in {.val {round(proc.time()[['elapsed']] - timerStart, 2)}} seconds.")
   }
 
@@ -1151,19 +1166,32 @@ TuneBoostTree <- function(
 ## Fim
 #
 
+#' Formatar nomes para mensagens diagnósticas
+#' @noRd
+
+TuneBoostTree_FormatQuotedNames <- function(nameValues) {
+
+  paste0("'", nameValues, "'", collapse = ", ")
+}
+####
+## Fim
+#
+
+
 #' Resolver configuração da engine
 #' @noRd
+
 TuneBoostTree_ResolveEngine <- function(engine) {
 
-  if(is.character(engine)){
+  if(is.character(engine)) {
     engineName <- match.arg(as.character(engine)[1L], c("xgboost", "lightgbm"))
-    if(engineName == "xgboost"){
+    if(engineName == "xgboost") {
       return(TuneBoostTreeXgboost())
     }
 
     return(TuneBoostTreeLightgbm())
   }
-  if(!is.list(engine) || is.null(engine$name) || !(engine$name %in% c("xgboost", "lightgbm"))){
+  if(!is.list(engine) || is.null(engine$name) || !(engine$name %in% c("xgboost", "lightgbm"))) {
     cli::cli_abort("`engine` must be 'xgboost', 'lightgbm', or a TuneBoostTree engine configuration.")
   }
   engine
@@ -1174,12 +1202,13 @@ TuneBoostTree_ResolveEngine <- function(engine) {
 
 #' Resolver configuração de boosting
 #' @noRd
+
 TuneBoostTree_ResolveBoost <- function(boost) {
 
-  if(is.null(boost)){
+  if(is.null(boost)) {
     boost <- TuneBoostTreeBoostParams()
   }
-  if(!is.list(boost)){
+  if(!is.list(boost)) {
     cli::cli_abort("`boost` must be created by `TuneBoostTreeBoostParams()` or be a compatible list.")
   }
   defaults <- TuneBoostTreeBoostParams()
@@ -1202,12 +1231,13 @@ TuneBoostTree_ResolveBoost <- function(boost) {
 
 #' Resolver espaço de busca
 #' @noRd
+
 TuneBoostTree_ResolveSearchSpace <- function(searchSpace, boost) {
 
-  if(is.null(searchSpace)){
+  if(is.null(searchSpace)) {
     searchSpace <- TuneBoostTreeSearchSpace()
   }
-  if(!is.list(searchSpace)){
+  if(!is.list(searchSpace)) {
     cli::cli_abort("`searchSpace` must be created by `TuneBoostTreeSearchSpace()` or be a compatible list.")
   }
   defaults <- TuneBoostTreeSearchSpace()
@@ -1217,12 +1247,12 @@ TuneBoostTree_ResolveSearchSpace <- function(searchSpace, boost) {
   fixedNames <- candidateFixedNames[
     !vapply(boost[candidateFixedNames], is.null, logical(1L))
   ]
-  for(parameterName in fixedNames){
-    if(identical(boost[[parameterName]], "default")){
+  for(parameterName in fixedNames) {
+    if(identical(boost[[parameterName]], "default")) {
       next
     }
     value <- as.numeric(boost[[parameterName]])[1L]
-    if(!is.finite(value)){
+    if(!is.finite(value)) {
       cli::cli_abort("Fixed boost parameter `{parameterName}` must be finite.")
     }
     bounds[[parameterName]] <- c(value, value)
@@ -1235,12 +1265,13 @@ TuneBoostTree_ResolveSearchSpace <- function(searchSpace, boost) {
 
 #' Resolver configuração de validação cruzada
 #' @noRd
+
 TuneBoostTree_ResolveCv <- function(cv) {
 
-  if(is.null(cv)){
+  if(is.null(cv)) {
     cv <- TuneBoostTreeCv()
   }
-  if(!is.list(cv)){
+  if(!is.list(cv)) {
     cli::cli_abort("`cv` must be created by `TuneBoostTreeCv()` or be a compatible list.")
   }
   defaults <- TuneBoostTreeCv()
@@ -1253,30 +1284,31 @@ TuneBoostTree_ResolveCv <- function(cv) {
 
 #' Resolver localização do comando Limbo
 #' @noRd
+
 TuneBoostTree_ResolveLimboCommand <- function(command = NULL) {
 
-  if(!is.null(command)){
+  if(!is.null(command)) {
     command <- as.character(command)
-    if(length(command) != 1L){
+    if(length(command) != 1L) {
       cli::cli_abort("`command` must be `NULL` or a single executable path/command.")
     }
-    if(is.na(command) || !nzchar(command)){
+    if(is.na(command) || !nzchar(command)) {
       return(NA_character_)
     }
 
     return(command)
   }
   envCommand <- Sys.getenv("TBTB_LIMBO_COMMAND", unset = NA_character_)
-  if(!is.na(envCommand) && nzchar(envCommand)){
+  if(!is.na(envCommand) && nzchar(envCommand)) {
     return(envCommand)
   }
-  if(.Platform$OS.type == "windows"){
+  if(.Platform$OS.type == "windows") {
     executableName <- "tbtb-limbo-ask.exe"
   } else {
     executableName <- "tbtb-limbo-ask"
   }
   pkgCommand <- system.file("bin", executableName, package = "TuneBoostTreeBayesian")
-  if(nzchar(pkgCommand)){
+  if(nzchar(pkgCommand)) {
     return(pkgCommand)
   }
   NA_character_
@@ -1287,14 +1319,15 @@ TuneBoostTree_ResolveLimboCommand <- function(command = NULL) {
 
 #' Verificar comando executável
 #' @noRd
+
 TuneBoostTree_IsExecutableCommand <- function(command) {
 
   command <- as.character(command)[1L]
-  if(is.na(command) || !nzchar(command)){
+  if(is.na(command) || !nzchar(command)) {
     return(FALSE)
   }
   command <- path.expand(command)
-  if(grepl(.Platform$file.sep, command, fixed = TRUE) || grepl("/", command, fixed = TRUE)){
+  if(grepl(.Platform$file.sep, command, fixed = TRUE) || grepl("/", command, fixed = TRUE)) {
     return(file.exists(command) && file.access(command, mode = 1L) == 0L)
   }
   nzchar(Sys.which(command))
@@ -1305,30 +1338,31 @@ TuneBoostTree_IsExecutableCommand <- function(command) {
 
 #' Resolver configuração do otimizador
 #' @noRd
+
 TuneBoostTree_ResolveOptimizer <- function(optimizer) {
 
-  if(is.null(optimizer)){
+  if(is.null(optimizer)) {
     optimizer <- TuneBoostTreeOptimizerRBayesianOptimization()
   }
-  if(is.character(optimizer)){
+  if(is.character(optimizer)) {
     optimizerName <- as.character(optimizer[1L])
-    if(identical(optimizerName, "internal")){
+    if(identical(optimizerName, "internal")) {
       optimizer <- TuneBoostTreeInternalOptimizer()
-    } else if(identical(optimizerName, "rBayesianOptimization")){
+    } else if(identical(optimizerName, "rBayesianOptimization")) {
       optimizer <- TuneBoostTreeOptimizerRBayesianOptimization()
-    } else if(identical(optimizerName, "limbo")){
+    } else if(identical(optimizerName, "limbo")) {
       optimizer <- TuneBoostTreeOptimizerLimbo()
     } else {
       cli::cli_abort("`optimizer` as character must be one of 'internal', 'rBayesianOptimization', or 'limbo'.")
     }
   }
-  if(!is.list(optimizer) || is.null(optimizer$type)){
+  if(!is.list(optimizer) || is.null(optimizer$type)) {
     cli::cli_abort(paste0(
       "`optimizer` must be created by `TuneBoostTreeOptimizerLimbo()`, ",
       "`TuneBoostTreeOptimizerRBayesianOptimization()`, or `TuneBoostTreeInternalOptimizer()`."
     ))
   }
-  if(!(optimizer$type %in% c("limbo", "internal", "rBayesianOptimization"))){
+  if(!(optimizer$type %in% c("limbo", "internal", "rBayesianOptimization"))) {
     cli::cli_abort("Unsupported optimizer type: {optimizer$type}")
   }
   optimizer
@@ -1339,15 +1373,16 @@ TuneBoostTree_ResolveOptimizer <- function(optimizer) {
 
 #' Resolver configuração de desbalanceamento
 #' @noRd
+
 TuneBoostTree_ResolveImbalance <- function(imbalance) {
 
-  if(is.null(imbalance)){
+  if(is.null(imbalance)) {
     imbalance <- TuneBoostTreeImbalance()
   }
-  if(!is.list(imbalance)){
+  if(!is.list(imbalance)) {
     cli::cli_abort("`imbalance` must be created by `TuneBoostTreeImbalance()` or be a compatible list.")
   }
-  if(is.null(imbalance$balance_args)){
+  if(is.null(imbalance$balance_args)) {
     args <- list()
   } else {
     args <- imbalance$balance_args
@@ -1369,12 +1404,13 @@ TuneBoostTree_ResolveImbalance <- function(imbalance) {
 
 #' Resolver configuração de performance
 #' @noRd
+
 TuneBoostTree_ResolvePerformance <- function(performance) {
 
-  if(is.null(performance)){
+  if(is.null(performance)) {
     performance <- TuneBoostTreePerformance()
   }
-  if(!is.list(performance)){
+  if(!is.list(performance)) {
     cli::cli_abort("`performance` must be created by `TuneBoostTreePerformance()` or be a compatible list.")
   }
   defaults <- TuneBoostTreePerformance()
@@ -1387,12 +1423,13 @@ TuneBoostTree_ResolvePerformance <- function(performance) {
 
 #' Resolver controle de execução
 #' @noRd
+
 TuneBoostTree_ResolveControl <- function(control) {
 
-  if(is.null(control)){
+  if(is.null(control)) {
     control <- TuneBoostTreeControl()
   }
-  if(!is.list(control)){
+  if(!is.list(control)) {
     cli::cli_abort("`control` must be created by `TuneBoostTreeControl()` or be a compatible list.")
   }
   defaults <- TuneBoostTreeControl()
@@ -1410,9 +1447,10 @@ TuneBoostTree_ResolveControl <- function(control) {
 
 #' Resolver estado inicial do otimizador
 #' @noRd
+
 TuneBoostTree_ResolveInitial <- function(initial, bounds) {
 
-  if(is.null(initial)){
+  if(is.null(initial)) {
     return(
       list(
         initGridDt = NULL,
@@ -1420,10 +1458,10 @@ TuneBoostTree_ResolveInitial <- function(initial, bounds) {
       )
     )
   }
-  if(is.list(initial) && !is.data.frame(initial) && !is.null(initial$initial)){
+  if(is.list(initial) && !is.data.frame(initial) && !is.null(initial$initial)) {
     initial <- initial$initial
   }
-  if(is.data.frame(initial)){
+  if(is.data.frame(initial)) {
     return(
       list(
         initGridDt = TuneBoostTree_DeduplicateInitGrid(initial, bounds),
@@ -1431,7 +1469,7 @@ TuneBoostTree_ResolveInitial <- function(initial, bounds) {
       )
     )
   }
-  if(is.numeric(initial) && length(initial) == 1L && is.finite(initial) && initial >= 0){
+  if(is.numeric(initial) && length(initial) == 1L && is.finite(initial) && initial >= 0) {
     return(
       list(
         initGridDt = NULL,
@@ -1447,12 +1485,13 @@ TuneBoostTree_ResolveInitial <- function(initial, bounds) {
 
 #' Detectar orçamento físico de CPU
 #' @noRd
+
 TuneBoostTree_DetectCpuBudget <- function() {
 
   physical <- tryCatch({
     lscpu <- Sys.which("lscpu")
 
-    if(!nzchar(lscpu)){
+    if(!nzchar(lscpu)) {
       NA_integer_
     } else {
       raw <- system2(
@@ -1464,20 +1503,20 @@ TuneBoostTree_DetectCpuBudget <- function() {
       raw <- raw[!startsWith(raw, "#") & nzchar(raw)]
       physicalPairs <- unique(raw)
 
-      if(length(physicalPairs) > 0L){
+      if(length(physicalPairs) > 0L) {
         as.integer(length(physicalPairs))
       } else {
         NA_integer_
       }
     }
   }, error = function(e) NA_integer_, warning = function(w) NA_integer_)
-  if(is.na(physical) || physical < 1L){
+  if(is.na(physical) || physical < 1L) {
     physical <- suppressWarnings(parallel::detectCores(logical = FALSE))
   }
-  if(is.na(physical) || physical < 1L){
+  if(is.na(physical) || physical < 1L) {
     physical <- suppressWarnings(parallel::detectCores(logical = TRUE))
   }
-  if(is.na(physical) || physical < 1L){
+  if(is.na(physical) || physical < 1L) {
     physical <- 1L
   }
   reserve <- min(2L, max(0L, as.integer(physical) - 1L))
@@ -1489,12 +1528,13 @@ TuneBoostTree_DetectCpuBudget <- function() {
 
 #' Configurar espera passiva para OpenMP quando o usuário não definiu política
 #' @noRd
+
 TuneBoostTree_SetPassiveOpenMp <- function() {
 
-  if(!nzchar(Sys.getenv("OMP_WAIT_POLICY", unset = ""))){
+  if(!nzchar(Sys.getenv("OMP_WAIT_POLICY", unset = ""))) {
     Sys.setenv(OMP_WAIT_POLICY = "passive")
   }
-  if(!nzchar(Sys.getenv("GOMP_SPINCOUNT", unset = ""))){
+  if(!nzchar(Sys.getenv("GOMP_SPINCOUNT", unset = ""))) {
     Sys.setenv(GOMP_SPINCOUNT = "0")
   }
   invisible(TRUE)
@@ -1505,9 +1545,10 @@ TuneBoostTree_SetPassiveOpenMp <- function() {
 
 #' Preparar matriz de predição preservando representação esparsa
 #' @noRd
+
 TuneBoostTree_AsPredictionMatrix <- function(xMatrix) {
 
-  if(inherits(xMatrix, "sparseMatrix")){
+  if(inherits(xMatrix, "sparseMatrix")) {
     return(xMatrix)
   }
   as.matrix(xMatrix)
@@ -1518,10 +1559,11 @@ TuneBoostTree_AsPredictionMatrix <- function(xMatrix) {
 
 #' Resolver execução paralela
 #' @noRd
+
 TuneBoostTree_ResolveParallel <- function(parallel, nRows, nFolds) {
 
   totalCores <- TuneBoostTree_DetectCpuBudget()
-  if(isFALSE(parallel) || identical(parallel, "sequential")){
+  if(isFALSE(parallel) || identical(parallel, "sequential")) {
     return(
       list(
         workers = 1L,
@@ -1529,8 +1571,8 @@ TuneBoostTree_ResolveParallel <- function(parallel, nRows, nFolds) {
       )
     )
   }
-  if(is.character(parallel) && identical(parallel[1L], "auto")){
-    if(nRows < 1000L){
+  if(is.character(parallel) && identical(parallel[1L], "auto")) {
+    if(nRows < 1000L) {
       workers <- 1L
     } else {
       workers <- min(as.integer(nFolds), max(1L, floor(totalCores / 2L)))
@@ -1540,35 +1582,35 @@ TuneBoostTree_ResolveParallel <- function(parallel, nRows, nFolds) {
 
     return(TuneBoostTree_FinalizeParallel(workers, threads, nFolds, totalCores))
   }
-  if(is.list(parallel)){
-    if(is.null(parallel$strategy)){
+  if(is.list(parallel)) {
+    if(is.null(parallel$strategy)) {
       strategy <- "auto"
     } else {
       strategy <- as.character(parallel$strategy)[1L]
     }
-    if(strategy == "sequential"){
+    if(strategy == "sequential") {
       return(TuneBoostTree_FinalizeParallel(1L, totalCores, nFolds, totalCores))
     }
-    if(strategy == "engine"){
+    if(strategy == "engine") {
       return(TuneBoostTree_FinalizeParallel(1L, totalCores, nFolds, totalCores))
     }
-    if(identical(parallel$workers, "auto")){
+    if(identical(parallel$workers, "auto")) {
       workers <- min(as.integer(nFolds), max(1L, floor(totalCores / 2L)))
     } else {
       workers <- as.integer(parallel$workers)
     }
 
-    if(length(workers) != 1L || is.na(workers) || workers < 1L){
+    if(length(workers) != 1L || is.na(workers) || workers < 1L) {
       cli::cli_abort("Parallel `workers` must be positive or 'auto'.")
     }
 
-    if(identical(parallel$threads_per_worker, "auto")){
+    if(identical(parallel$threads_per_worker, "auto")) {
       threads <- max(1L, floor(totalCores / workers))
     } else {
       threads <- as.integer(parallel$threads_per_worker)
     }
 
-    if(length(threads) != 1L || is.na(threads) || threads < 1L){
+    if(length(threads) != 1L || is.na(threads) || threads < 1L) {
       cli::cli_abort("Parallel `threads_per_worker` must be positive or 'auto'.")
     }
     return(TuneBoostTree_FinalizeParallel(workers, threads, nFolds, totalCores))
@@ -1581,13 +1623,14 @@ TuneBoostTree_ResolveParallel <- function(parallel, nRows, nFolds) {
 
 #' Finalizar configuração paralela e avisar sobre oversubscription manual
 #' @noRd
+
 TuneBoostTree_FinalizeParallel <- function(workers, threads, nFolds, totalCores) {
 
   workers <- min(as.integer(workers), as.integer(nFolds))
   threads <- as.integer(threads)
   totalCores <- max(1L, as.integer(totalCores))
   requestedThreads <- as.numeric(workers) * as.numeric(threads)
-  if(is.finite(requestedThreads) && requestedThreads > as.numeric(totalCores)){
+  if(is.finite(requestedThreads) && requestedThreads > as.numeric(totalCores)) {
     adjustedThreads <- max(1L, as.integer(floor(as.numeric(totalCores) / as.numeric(workers))))
     cli::cli_warn(paste0(
       "workers ({workers}) * threads_per_worker ({threads}) = {requestedThreads} ",
@@ -1604,14 +1647,15 @@ TuneBoostTree_FinalizeParallel <- function(workers, threads, nFolds, totalCores)
 
 #' Resolver peso da classe positiva
 #' @noRd
+
 TuneBoostTree_ResolveScalePosWeight <- function(yData, scale_pos_weight) {
 
-  if(is.null(scale_pos_weight)){
+  if(is.null(scale_pos_weight)) {
     return(NULL)
   }
-  if(is.character(scale_pos_weight) && identical(scale_pos_weight, "auto")){
+  if(is.character(scale_pos_weight) && identical(scale_pos_weight, "auto")) {
     classCounts <- table(as.integer(yData))
-    if(length(classCounts) != 2L || any(classCounts == 0L)){
+    if(length(classCounts) != 2L || any(classCounts == 0L)) {
       return(NULL)
     }
     return(as.numeric(classCounts[["0"]] / classCounts[["1"]]))
@@ -1626,17 +1670,18 @@ TuneBoostTree_ResolveScalePosWeight <- function(yData, scale_pos_weight) {
 
 #' Validar contagens de classes da validação cruzada
 #' @noRd
+
 TuneBoostTree_ValidateCvClassCounts <- function(yData, nFolds) {
 
   classCounts <- table(as.integer(yData))
-  if(length(classCounts) != 2L || any(classCounts == 0L)){
+  if(length(classCounts) != 2L || any(classCounts == 0L)) {
     cli::cli_abort("`data` must contain both binary classes.")
   }
   minClassCount <- min(as.integer(classCounts))
-  if(minClassCount < 2L){
+  if(minClassCount < 2L) {
     cli::cli_abort("The minority class must contain at least two observations for cross-validation.")
   }
-  if(minClassCount < as.integer(nFolds)){
+  if(minClassCount < as.integer(nFolds)) {
     cli::cli_warn(paste0(
       "Minority class has {.val {minClassCount}} observation(s), fewer than requested ",
       "{.val {nFolds}} fold(s); using {.val {minClassCount}} fold(s) so every ",
@@ -1660,6 +1705,7 @@ TuneBoostTree_ValidateCvClassCounts <- function(yData, nFolds) {
 #'
 #' @return Lista com nome do alvo, nomes dos preditores e objeto de termos.
 #' @noRd
+
 TuneBoostTree_ExtractFormulaInfo <- function(formula, data) {
 
   targetName <- all.vars(formula[[2L]])[1L]
@@ -1684,25 +1730,26 @@ TuneBoostTree_ExtractFormulaInfo <- function(formula, data) {
 #'
 #' @return Lista com alvo numérico, níveis, classe negativa e classe positiva.
 #' @noRd
+
 TuneBoostTree_PrepareTarget <- function(targetData, targetLevels = NULL) {
 
-  if(!is.factor(targetData)){
+  if(!is.factor(targetData)) {
     cli::cli_abort("The dependent/target variable must be a factor with exactly two levels.")
   }
   observedLevels <- levels(targetData)
-  if(length(observedLevels) != 2L){
+  if(length(observedLevels) != 2L) {
     cli::cli_abort("The dependent/target factor must have exactly two levels.")
   }
-  if(anyNA(targetData)){
+  if(anyNA(targetData)) {
     cli::cli_abort("The dependent/target factor must not contain missing values.")
   }
-  if(is.null(targetLevels)){
+  if(is.null(targetLevels)) {
     classCounts <- table(targetData)
     levelCounts <- as.integer(classCounts[observedLevels])
-    if(any(levelCounts == 0L)){
+    if(any(levelCounts == 0L)) {
       cli::cli_abort("The dependent/target factor must contain observations for both levels.")
     }
-    if(levelCounts[1L] <= levelCounts[2L]){
+    if(levelCounts[1L] <= levelCounts[2L]) {
       positiveClass <- observedLevels[1L]
     } else {
       positiveClass <- observedLevels[2L]
@@ -1711,7 +1758,7 @@ TuneBoostTree_PrepareTarget <- function(targetData, targetLevels = NULL) {
     targetLevels <- c(negativeClass, positiveClass)
   }
   targetLevels <- as.character(targetLevels)
-  if(length(targetLevels) != 2L || anyNA(targetLevels) || !setequal(targetLevels, observedLevels)){
+  if(length(targetLevels) != 2L || anyNA(targetLevels) || !setequal(targetLevels, observedLevels)) {
     cli::cli_abort("`targetLevels` must contain the two factor levels of the target.")
   }
   positiveClass <- targetLevels[2L]
@@ -1741,16 +1788,17 @@ TuneBoostTree_PrepareTarget <- function(targetData, targetLevels = NULL) {
 #'
 #' @return Lista com matriz, alvo, metadados de features, classes e fórmula.
 #' @noRd
+
 TuneBoostTree_PrepareMatrix <- function(formula, data, featureTypes = NULL, targetLevels = NULL, formulaInfo = NULL) {
 
-  if(is.null(formulaInfo)){
+  if(is.null(formulaInfo)) {
     formulaInfo <- TuneBoostTree_ExtractFormulaInfo(formula, data)
   }
   featureNames <- formulaInfo$predictorNames
   dataFrame <- as.data.frame(data)
   xData <- dataFrame[, featureNames, drop = FALSE]
   sparseLike <- vapply(xData, TuneBoostTree_IsSparseLikeColumn, logical(1L))
-  if(any(sparseLike)){
+  if(any(sparseLike)) {
     sparseRatio <- 1
   } else {
     sparseRatio <- TuneBoostTree_EstimateSparseRatio(xData)
@@ -1758,7 +1806,7 @@ TuneBoostTree_PrepareMatrix <- function(formula, data, featureTypes = NULL, targ
   numericMatrix <- data.matrix(xData)
   storage.mode(numericMatrix) <- "double"
   colnames(numericMatrix) <- featureNames
-  if(any(sparseLike) || sparseRatio > 0.7){
+  if(any(sparseLike) || sparseRatio > 0.7) {
     xMatrix <- Matrix::Matrix(numericMatrix, sparse = TRUE)
   } else {
     xMatrix <- numericMatrix
@@ -1767,7 +1815,7 @@ TuneBoostTree_PrepareMatrix <- function(formula, data, featureTypes = NULL, targ
     dataFrame[[formulaInfo$targetName]],
     targetLevels
   )
-  if(!is.null(featureTypes)){
+  if(!is.null(featureTypes)) {
     names(featureTypes) <- featureNames
   }
   list(
@@ -1789,9 +1837,10 @@ TuneBoostTree_PrepareMatrix <- function(formula, data, featureTypes = NULL, targ
 
 #' Estimar proporção de zeros sem materializar toda a matriz
 #' @noRd
+
 TuneBoostTree_EstimateSparseRatio <- function(xData, sampleCols = 30L) {
 
-  if(ncol(xData) == 0L){
+  if(ncol(xData) == 0L) {
     return(0)
   }
   sampleCols <- min(as.integer(sampleCols), ncol(xData))
@@ -1806,6 +1855,7 @@ TuneBoostTree_EstimateSparseRatio <- function(xData, sampleCols = 30L) {
 
 #' Detectar colunas com perfil esparso
 #' @noRd
+
 TuneBoostTree_IsSparseLikeColumn <- function(column) {
 
   any(c("sparsevctrs_vctr", "sparse_vector", "sparse_double", "sparse_integer") %in% class(column))
@@ -1826,6 +1876,7 @@ TuneBoostTree_IsSparseLikeColumn <- function(column) {
 #'
 #' @return Um `xgb.DMatrix` para XGBoost ou `lgb.Dataset` para LightGBM.
 #' @noRd
+
 TuneBoostTree_CreateDataObject <- function(
   xMatrix,
   yData = NULL,
@@ -1834,17 +1885,17 @@ TuneBoostTree_CreateDataObject <- function(
   engine = "xgboost"
 ) {
 
-  if(engine == "xgboost"){
+  if(engine == "xgboost") {
     args <- list(
       data = xMatrix,
       nthread = as.integer(nThreads)
     )
 
-    if(!is.null(yData)){
+    if(!is.null(yData)) {
       args$label <- yData
     }
 
-    if(!is.null(featureTypes)){
+    if(!is.null(featureTypes)) {
       args$feature_types <- unname(featureTypes)
     }
 
@@ -1867,14 +1918,15 @@ TuneBoostTree_CreateDataObject <- function(
 #'
 #' @return Lista de vetores inteiros com índices de teste.
 #' @noRd
+
 TuneBoostTree_CreateStratifiedFolds <- function(yData, nFolds = 10L, seed = 42L) {
 
-  if(length(yData) == 0L || anyNA(yData)){
+  if(length(yData) == 0L || anyNA(yData)) {
     cli::cli_abort("`yData` must be a non-empty binary vector encoded as 0/1 or FALSE/TRUE.")
   }
-  if(is.logical(yData)){
+  if(is.logical(yData)) {
     yData <- as.integer(yData)
-  } else if(is.numeric(yData) && all(yData %in% c(0, 1))){
+  } else if(is.numeric(yData) && all(yData %in% c(0, 1))) {
     yData <- as.integer(yData)
   } else {
     cli::cli_abort("`yData` must be a non-empty binary vector encoded as 0/1 or FALSE/TRUE.")
@@ -1882,26 +1934,26 @@ TuneBoostTree_CreateStratifiedFolds <- function(yData, nFolds = 10L, seed = 42L)
 
   nFolds <- as.integer(nFolds)
 
-  if(length(nFolds) != 1L || is.na(nFolds) || nFolds < 2L){
+  if(length(nFolds) != 1L || is.na(nFolds) || nFolds < 2L) {
     cli::cli_abort("`nFolds` must be a single integer greater than or equal to 2.")
   }
 
   classCounts <- table(yData)
-  if(length(classCounts) != 2L || any(classCounts == 0L)){
+  if(length(classCounts) != 2L || any(classCounts == 0L)) {
     cli::cli_abort("`yData` must contain both binary classes.")
   }
-  if(any(classCounts < nFolds)){
+  if(any(classCounts < nFolds)) {
     cli::cli_abort("Each binary class must contain at least `nFolds` observations for stratified folds.")
   }
 
-  if(exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)){
+  if(exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
     oldSeed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
   } else {
     oldSeed <- NULL
   }
   on.exit({
-    if(is.null(oldSeed)){
-      if(exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)){
+    if(is.null(oldSeed)) {
+      if(exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
         rm(".Random.seed", envir = .GlobalEnv)
       }
     } else {
@@ -1913,7 +1965,7 @@ TuneBoostTree_CreateStratifiedFolds <- function(yData, nFolds = 10L, seed = 42L)
   negativeIndex <- sample(which(yData == 0L))
   positiveIndex <- sample(which(yData == 1L))
   folds <- vector("list", nFolds)
-  for(foldId in seq_len(nFolds)){
+  for(foldId in seq_len(nFolds)) {
     folds[[foldId]] <- c(
       negativeIndex[seq(foldId, length(negativeIndex), by = nFolds)],
       positiveIndex[seq(foldId, length(positiveIndex), by = nFolds)]
@@ -1938,6 +1990,7 @@ TuneBoostTree_CreateStratifiedFolds <- function(yData, nFolds = 10L, seed = 42L)
 #' @return Lista de vetores inteiros. Cada elemento contém os índices de teste de
 #'   um fold; os índices de treino são obtidos pelo complemento.
 #' @export
+
 SplitDataBoostTreeFolds <- function(yData, nFolds = 10L, seed = 42L) {
 
   TuneBoostTree_CreateStratifiedFolds(yData = yData, nFolds = nFolds, seed = seed)
@@ -1952,6 +2005,7 @@ SplitDataBoostTreeFolds <- function(yData, nFolds = 10L, seed = 42L) {
 #'
 #' @return Lista nomeada de limites numéricos.
 #' @noRd
+
 TuneBoostTree_GetDefaultBounds <- function() {
 
   TuneBoostTreeSearchSpace()
@@ -1963,13 +2017,14 @@ TuneBoostTree_GetDefaultBounds <- function() {
 
 #' Ler hiperparâmetro opcional
 #' @noRd
+
 TuneBoostTree_GetHyperparameter <- function(hyperparameters, parameterName, default = NULL) {
 
-  if(!parameterName %in% names(hyperparameters) || is.null(hyperparameters[[parameterName]])){
+  if(!parameterName %in% names(hyperparameters) || is.null(hyperparameters[[parameterName]])) {
     return(default)
   }
   value <- as.numeric(hyperparameters[[parameterName]])[1L]
-  if(!is.finite(value)){
+  if(!is.finite(value)) {
     return(default)
   }
   value
@@ -1980,9 +2035,10 @@ TuneBoostTree_GetHyperparameter <- function(hyperparameters, parameterName, defa
 
 #' Converter tabelas retornadas em tibbles
 #' @noRd
+
 TuneBoostTree_AsTibble <- function(x) {
 
-  if(is.null(x)){
+  if(is.null(x)) {
     return(NULL)
   }
   tibble::as_tibble(x)
@@ -2004,6 +2060,7 @@ TuneBoostTree_AsTibble <- function(x) {
 #'
 #' @return Lista nomeada pronta para `xgb.train` ou `lgb.train`.
 #' @noRd
+
 TuneBoostTree_BuildParams <- function(
   hyperparameters,
   nThreads = 1L,
@@ -2018,7 +2075,7 @@ TuneBoostTree_BuildParams <- function(
   minNValue <- as.numeric(hyperparameters[["min_n"]])
   sampleSizeValue <- as.numeric(hyperparameters[["sample_size"]])
   mtryRaw <- hyperparameters[["mtry"]]
-  if(is.null(mtryRaw) || (is.character(mtryRaw) && identical(mtryRaw[1L], "default"))){
+  if(is.null(mtryRaw) || (is.character(mtryRaw) && identical(mtryRaw[1L], "default"))) {
     mtryValue <- 0.8
   } else {
     mtryValue <- as.numeric(mtryRaw)[1L]
@@ -2050,13 +2107,13 @@ TuneBoostTree_BuildParams <- function(
     "scale_pos_weight",
     NULL
   )
-  if(!is.null(tunedScalePosWeight)){
+  if(!is.null(tunedScalePosWeight)) {
     scalePosWeight <- tunedScalePosWeight
   }
-  if(!is.null(scalePosWeight)){
+  if(!is.null(scalePosWeight)) {
     scalePosWeight <- as.numeric(scalePosWeight)[1L]
   }
-  if(engine == "xgboost"){
+  if(engine == "xgboost") {
     params <- list(
       objective = "binary:logistic",
       eval_metric = evalMetric,
@@ -2072,28 +2129,28 @@ TuneBoostTree_BuildParams <- function(
       nthread = as.integer(nThreads),
       seed = as.integer(seed)
     )
-    if(!is.null(lambdaValue)){
+    if(!is.null(lambdaValue)) {
       params$lambda <- as.numeric(lambdaValue)
     }
-    if(!is.null(alphaValue)){
+    if(!is.null(alphaValue)) {
       params$alpha <- as.numeric(alphaValue)
     }
-    if(!is.null(maxDeltaStepValue)){
+    if(!is.null(maxDeltaStepValue)) {
       params$max_delta_step <- as.numeric(maxDeltaStepValue)
     }
-    if(!is.null(colsampleBytreeValue)){
+    if(!is.null(colsampleBytreeValue)) {
       params$colsample_bytree <- as.numeric(colsampleBytreeValue)
     }
-    if(!is.null(colsampleBylevelValue)){
+    if(!is.null(colsampleBylevelValue)) {
       params$colsample_bylevel <- as.numeric(colsampleBylevelValue)
     }
-    if(!is.null(scalePosWeight)){
+    if(!is.null(scalePosWeight)) {
       params$scale_pos_weight <- scalePosWeight
     }
     return(params)
   }
   lightgbmMetric <- as.character(evalMetric)[1L]
-  if(identical(lightgbmMetric, "aucpr")){
+  if(identical(lightgbmMetric, "aucpr")) {
     lightgbmMetric <- "average_precision"
   }
   params <- list(
@@ -2113,22 +2170,22 @@ TuneBoostTree_BuildParams <- function(
     verbosity = -1L,
     verbose = -1L
   )
-  if(!is.null(lambdaValue)){
+  if(!is.null(lambdaValue)) {
     params$lambda_l2 <- as.numeric(lambdaValue)
   }
-  if(!is.null(alphaValue)){
+  if(!is.null(alphaValue)) {
     params$lambda_l1 <- as.numeric(alphaValue)
   }
-  if(!is.null(colsampleBytreeValue)){
+  if(!is.null(colsampleBytreeValue)) {
     params$feature_fraction <- as.numeric(colsampleBytreeValue)
   }
-  if(!is.null(numLeavesValue)){
+  if(!is.null(numLeavesValue)) {
     params$num_leaves <- as.integer(round(as.numeric(numLeavesValue)))
   }
-  if(!is.null(minDataInLeafValue)){
+  if(!is.null(minDataInLeafValue)) {
     params$min_data_in_leaf <- as.integer(round(as.numeric(minDataInLeafValue)))
   }
-  if(!is.null(scalePosWeight)){
+  if(!is.null(scalePosWeight)) {
     params$scale_pos_weight <- scalePosWeight
   }
   params
@@ -2155,6 +2212,7 @@ TuneBoostTree_BuildParams <- function(
 #'
 #' @return Lista de objetos de fold com matrizes R, rótulos, pesos e metadados.
 #' @noRd
+
 TuneBoostTree_PrepareBalancedFolds <- function(
   formula,
   data,
@@ -2176,7 +2234,7 @@ TuneBoostTree_PrepareBalancedFolds <- function(
   )
   folds <- TuneBoostTree_CreateStratifiedFolds(preparedTarget$yData, nFolds, seed)
   balancedFolds <- vector("list", length(folds))
-  for(foldId in seq_along(folds)){
+  for(foldId in seq_along(folds)) {
     testIndex <- folds[[foldId]]
     trainData <- data[setdiff(seq_len(nrow(data)), testIndex), , drop = FALSE]
     testData <- data[testIndex, , drop = FALSE]
@@ -2238,6 +2296,7 @@ TuneBoostTree_PrepareBalancedFolds <- function(
 #'
 #' @return Lista com score médio, melhor iteração média e scores por fold.
 #' @noRd
+
 TuneBoostTree_RunCvManual <- function(
   balancedFolds,
   hyperparameters,
@@ -2253,16 +2312,16 @@ TuneBoostTree_RunCvManual <- function(
 
   nWorkers <- min(max(1L, as.integer(nWorkersFolds)), length(balancedFolds))
   workerThreads <- max(1L, as.integer(nThreads))
-  if(identical(engine, "lightgbm") && nWorkers > 1L){
+  if(identical(engine, "lightgbm") && nWorkers > 1L) {
     nWorkers <- 1L
     workerThreads <- max(1L, as.integer(nThreads) * max(1L, as.integer(nWorkersFolds)))
   }
   foldIds <- seq_along(balancedFolds)
   TuneBoostTree_SetPassiveOpenMp()
-  if(nWorkers == 1L){
+  if(nWorkers == 1L) {
     foldResults <- vector("list", length(foldIds))
 
-    for(i in foldIds){
+    for(i in foldIds) {
       foldResults[[i]] <- TuneBoostTree_RunFoldById(
         foldId = i,
         balancedFolds = balancedFolds,
@@ -2276,7 +2335,7 @@ TuneBoostTree_RunCvManual <- function(
         prAucBackend = prAucBackend
       )
     }
-  } else if(.Platform$OS.type == "windows"){
+  } else if(.Platform$OS.type == "windows") {
     cluster <- parallel::makeCluster(nWorkers)
     on.exit(parallel::stopCluster(cluster), add = TRUE)
 
@@ -2313,15 +2372,15 @@ TuneBoostTree_RunCvManual <- function(
   }
   invalidFold <- vapply(foldResults, TuneBoostTree_IsInvalidFoldResult, logical(1L))
 
-  if(any(invalidFold)){
+  if(any(invalidFold)) {
     failedFolds <- paste(foldIds[invalidFold], collapse = ", ")
     foldMessages <- vapply(
       foldResults[invalidFold],
       function(foldResult) {
-        if(is.list(foldResult) && !is.null(foldResult$errorMessage)){
+        if(is.list(foldResult) && !is.null(foldResult$errorMessage)) {
           return(as.character(foldResult$errorMessage)[1L])
         }
-        if(inherits(foldResult, "try-error") || inherits(foldResult, "error")){
+        if(inherits(foldResult, "try-error") || inherits(foldResult, "error")) {
           return(as.character(foldResult)[1L])
         }
         "Unknown fold failure."
@@ -2336,7 +2395,7 @@ TuneBoostTree_RunCvManual <- function(
   foldScores <- vapply(foldResults, `[[`, numeric(1L), "score")
   foldBestIter <- vapply(foldResults, `[[`, integer(1L), "bestIteration")
 
-  if(anyNA(foldScores)){
+  if(anyNA(foldScores)) {
     cli::cli_abort(paste0(
       "At least one validation fold produced undefined PR-AUC; reduce `folds` ",
       "or provide more positive-class observations."
@@ -2355,22 +2414,23 @@ TuneBoostTree_RunCvManual <- function(
 
 #' Verificar resultado inválido de fold
 #' @noRd
+
 TuneBoostTree_IsInvalidFoldResult <- function(foldResult) {
 
-  if(inherits(foldResult, "try-error") || inherits(foldResult, "error")){
+  if(inherits(foldResult, "try-error") || inherits(foldResult, "error")) {
     return(TRUE)
   }
 
-  if(!is.list(foldResult)){
+  if(!is.list(foldResult)) {
     return(TRUE)
   }
 
   missingNames <- setdiff(c("score", "bestIteration"), names(foldResult))
-  if(length(missingNames) > 0L){
+  if(length(missingNames) > 0L) {
     return(TRUE)
   }
 
-  if(!is.null(foldResult$errorMessage)){
+  if(!is.null(foldResult$errorMessage)) {
     return(TRUE)
   }
 
@@ -2396,6 +2456,7 @@ TuneBoostTree_IsInvalidFoldResult <- function(foldResult) {
 #'
 #' @return Lista com `Score` e `Pred` para adaptadores de otimizador.
 #' @noRd
+
 TuneBoostTree_EvaluateCv <- function(...) {
 
   hyperparameters <- list(...)
@@ -2404,7 +2465,7 @@ TuneBoostTree_EvaluateCv <- function(...) {
     names(boost)[!vapply(boost, is.null, logical(1L))],
     c("trees", "stop_iter")
   )
-  for(fixedName in setdiff(fixedBoostNames, names(hyperparameters))){
+  for(fixedName in setdiff(fixedBoostNames, names(hyperparameters))) {
     hyperparameters[[fixedName]] <- boost[[fixedName]]
   }
   normalizedData <- TuneBoostTree_NormalizeParams(
@@ -2412,7 +2473,7 @@ TuneBoostTree_EvaluateCv <- function(...) {
     parameterNames
   )
   hyperparameters <- as.list(normalizedData[1L, parameterNames, drop = FALSE])
-  for(fixedName in setdiff(fixedBoostNames, names(hyperparameters))){
+  for(fixedName in setdiff(fixedBoostNames, names(hyperparameters))) {
     hyperparameters[[fixedName]] <- boost[[fixedName]]
   }
   formattedParameterValues <- format(
@@ -2424,7 +2485,7 @@ TuneBoostTree_EvaluateCv <- function(...) {
     paste(parameterNames, formattedParameterValues, sep = "="),
     collapse = "|"
   )
-  if(exists(cacheKey, envir = cacheEnv, inherits = FALSE)){
+  if(exists(cacheKey, envir = cacheEnv, inherits = FALSE)) {
     cachedResult <- get(cacheKey, envir = cacheEnv, inherits = FALSE)
     return(
       list(
@@ -2485,6 +2546,7 @@ TuneBoostTree_EvaluateCv <- function(...) {
 #'
 #' @return Lista com resultado do fold.
 #' @noRd
+
 TuneBoostTree_RunFoldById <- function(
   foldId,
   balancedFolds,
@@ -2539,6 +2601,7 @@ TuneBoostTree_RunFoldById <- function(
 #'
 #' @return Lista com score do fold e melhor iteração.
 #' @noRd
+
 TuneBoostTree_RunOneFold <- function(
   foldData,
   hyperparameters,
@@ -2568,7 +2631,7 @@ TuneBoostTree_RunOneFold <- function(
     engine = engine
   )
 
-  if(engine == "xgboost"){
+  if(engine == "xgboost") {
     testObject <- TuneBoostTree_CreateDataObject(
       xMatrix = foldData$xTest,
       yData = foldData$yTest,
@@ -2589,7 +2652,7 @@ TuneBoostTree_RunOneFold <- function(
 
     bestIterFold <- as.integer(foldModel$best_iteration)
 
-    if(is.null(bestIterFold) || is.na(bestIterFold) || bestIterFold < 1L){
+    if(is.null(bestIterFold) || is.na(bestIterFold) || bestIterFold < 1L) {
       bestIterFold <- as.integer(nRounds)
     }
 
@@ -2612,18 +2675,18 @@ TuneBoostTree_RunOneFold <- function(
       do.call(lightgbm::lgb.train, trainArgs),
       error = function(e) e
     )
-    if(inherits(foldModel, "error") && paramsValue$metric %in% c("average_precision", "aucpr")){
+    if(inherits(foldModel, "error") && paramsValue$metric %in% c("average_precision", "aucpr")) {
       paramsValue$metric <- "auc"
       trainArgs$params <- paramsValue
       foldModel <- do.call(lightgbm::lgb.train, trainArgs)
     }
-    if(inherits(foldModel, "error")){
+    if(inherits(foldModel, "error")) {
       stop(foldModel)
     }
 
     bestIterFold <- as.integer(foldModel$best_iter)
 
-    if(is.null(bestIterFold) || is.na(bestIterFold) || bestIterFold < 1L){
+    if(is.null(bestIterFold) || is.na(bestIterFold) || bestIterFold < 1L) {
       bestIterFold <- as.integer(nRounds)
     }
 
@@ -2644,6 +2707,7 @@ TuneBoostTree_RunOneFold <- function(
 
 #' Executar otimizador de hiperparâmetros
 #' @noRd
+
 TuneBoostTree_RunOptimizer <- function(
   objective,
   bounds,
@@ -2660,8 +2724,8 @@ TuneBoostTree_RunOptimizer <- function(
   limboFallback = TRUE
 ) {
 
-  if(identical(optimizerBackend, "limbo")){
-    if(TuneBoostTree_IsExecutableCommand(limboCommand)){
+  if(identical(optimizerBackend, "limbo")) {
+    if(TuneBoostTree_IsExecutableCommand(limboCommand)) {
       limboResult <- tryCatch(
         TuneBoostTree_RunLimboOptimizer(
           objective,
@@ -2677,10 +2741,10 @@ TuneBoostTree_RunOptimizer <- function(
         ),
         error = function(e) e
       )
-      if(!inherits(limboResult, "error")){
+      if(!inherits(limboResult, "error")) {
         return(limboResult)
       }
-      if(!isTRUE(limboFallback)){
+      if(!isTRUE(limboFallback)) {
         cli::cli_abort("Limbo optimizer failed and `fallback = FALSE`: {conditionMessage(limboResult)}")
       }
       cli::cli_warn(paste0(
@@ -2701,10 +2765,10 @@ TuneBoostTree_RunOptimizer <- function(
         )
       )
     }
-    if(!isTRUE(limboFallback)){
+    if(!isTRUE(limboFallback)) {
       cli::cli_abort("Limbo optimizer command is not available or executable and `fallback = FALSE`.")
     }
-    if(!is.na(limboCommand) && nzchar(limboCommand)){
+    if(!is.na(limboCommand) && nzchar(limboCommand)) {
       cli::cli_warn("Limbo optimizer command is not available; using the package-native Bayesian optimizer fallback.")
     }
     return(
@@ -2721,7 +2785,7 @@ TuneBoostTree_RunOptimizer <- function(
       )
     )
   }
-  if(identical(optimizerBackend, "rBayesianOptimization") && requireNamespace("rBayesianOptimization", quietly = TRUE)){
+  if(identical(optimizerBackend, "rBayesianOptimization") && requireNamespace("rBayesianOptimization", quietly = TRUE)) {
     return(
       TuneBoostTree_RunRBayesianOptimization(
         objective,
@@ -2737,8 +2801,8 @@ TuneBoostTree_RunOptimizer <- function(
       )
     )
   }
-  if(identical(optimizerBackend, "rBayesianOptimization")){
-    if(!isTRUE(limboFallback)){
+  if(identical(optimizerBackend, "rBayesianOptimization")) {
+    if(!isTRUE(limboFallback)) {
       cli::cli_abort("Package {.pkg rBayesianOptimization} is not available and `fallback = FALSE`.")
     }
     cli::cli_warn(paste0(
@@ -2754,6 +2818,7 @@ TuneBoostTree_RunOptimizer <- function(
 
 #' Executar otimizador Limbo ask/tell
 #' @noRd
+
 TuneBoostTree_RunLimboOptimizer <- function(
   objective,
   bounds,
@@ -2771,7 +2836,7 @@ TuneBoostTree_RunLimboOptimizer <- function(
   parameterNames <- names(bounds)
   history <- TuneBoostTree_EvaluateInitialCandidates(objective, bounds, initGridDt, initPoints)
   best <- TuneBoostTree_BestHistoryRow(history, parameterNames)
-  for(iteration in seq_len(as.integer(nIter))){
+  for(iteration in seq_len(as.integer(nIter))) {
     candidate <- TuneBoostTree_RequestLimboCandidate(
       limboCommand,
       bounds,
@@ -2784,12 +2849,12 @@ TuneBoostTree_RunLimboOptimizer <- function(
     )
     candidate <- TuneBoostTree_ValidateCandidate(candidate, bounds)
     value <- as.numeric(do.call(objective, as.list(candidate[1L, parameterNames, drop = FALSE]))$Score)[1L]
-    if(is.finite(value)){
+    if(is.finite(value)) {
       history <- rbind(
         history,
         data.frame(candidate[1L, parameterNames, drop = FALSE], Value = value, stringsAsFactors = FALSE)
       )
-      if(value > best$Best_Value){
+      if(value > best$Best_Value) {
         best <- list(
           Best_Par = as.list(candidate[1L, parameterNames, drop = FALSE]),
           Best_Value = value
@@ -2797,7 +2862,7 @@ TuneBoostTree_RunLimboOptimizer <- function(
       }
     }
   }
-  if(!is.finite(best$Best_Value)){
+  if(!is.finite(best$Best_Value)) {
     cli::cli_abort("Limbo did not produce any finite optimizer score.")
   }
   list(
@@ -2812,6 +2877,7 @@ TuneBoostTree_RunLimboOptimizer <- function(
 
 #' Executar otimizador interno seguro
 #' @noRd
+
 TuneBoostTree_RunInternalOptimizer <- function(
   objective,
   bounds,
@@ -2828,10 +2894,10 @@ TuneBoostTree_RunInternalOptimizer <- function(
   parameterNames <- names(bounds)
   history <- TuneBoostTree_EvaluateInitialCandidates(objective, bounds, initGridDt, initPoints)
   best <- TuneBoostTree_BestHistoryRow(history, parameterNames)
-  if(!is.finite(best$Best_Value)){
+  if(!is.finite(best$Best_Value)) {
     cli::cli_abort("All initial optimizer candidate evaluations failed or returned non-finite scores.")
   }
-  for(iteration in seq_len(as.integer(nIter))){
+  for(iteration in seq_len(as.integer(nIter))) {
     candidate <- TuneBoostTree_ProposeInternalBayesianCandidate(
       history,
       bounds,
@@ -2841,12 +2907,12 @@ TuneBoostTree_RunInternalOptimizer <- function(
       seed + iteration
     )
     value <- as.numeric(do.call(objective, as.list(candidate[1L, parameterNames, drop = FALSE]))$Score)[1L]
-    if(is.finite(value)){
+    if(is.finite(value)) {
       history <- rbind(
         history,
         data.frame(candidate[1L, parameterNames, drop = FALSE], Value = value, stringsAsFactors = FALSE)
       )
-      if(value > best$Best_Value){
+      if(value > best$Best_Value) {
         best <- list(
           Best_Par = as.list(candidate[1L, parameterNames, drop = FALSE]),
           Best_Value = value
@@ -2866,21 +2932,22 @@ TuneBoostTree_RunInternalOptimizer <- function(
 
 #' Avaliar candidatos iniciais e de aquecimento
 #' @noRd
+
 TuneBoostTree_EvaluateInitialCandidates <- function(objective, bounds, initGridDt = NULL, initPoints = 10L) {
 
   parameterNames <- names(bounds)
   candidates <- TuneBoostTree_SampleCandidates(bounds, as.integer(initPoints))
-  if(!is.null(initGridDt) && nrow(initGridDt) > 0L){
+  if(!is.null(initGridDt) && nrow(initGridDt) > 0L) {
     candidates <- rbind(
       TuneBoostTree_ValidateCandidate(initGridDt[, parameterNames, drop = FALSE], bounds),
       candidates
     )
   }
-  if(nrow(candidates) == 0L){
+  if(nrow(candidates) == 0L) {
     candidates <- TuneBoostTree_SampleCandidates(bounds, max(1L, 2L * length(parameterNames)))
   }
   values <- rep(NA_real_, nrow(candidates))
-  for(rowId in seq_len(nrow(candidates))){
+  for(rowId in seq_len(nrow(candidates))) {
     candidateScore <- do.call(
       objective,
       as.list(candidates[rowId, parameterNames, drop = FALSE])
@@ -2901,9 +2968,10 @@ TuneBoostTree_EvaluateInitialCandidates <- function(objective, bounds, initGridD
 
 #' Selecionar melhor linha do histórico
 #' @noRd
+
 TuneBoostTree_BestHistoryRow <- function(history, parameterNames) {
 
-  if(is.null(history) || nrow(history) == 0L || !any(is.finite(history$Value))){
+  if(is.null(history) || nrow(history) == 0L || !any(is.finite(history$Value))) {
     return(
       list(
         Best_Par = NULL,
@@ -2923,6 +2991,7 @@ TuneBoostTree_BestHistoryRow <- function(history, parameterNames) {
 
 #' Propor candidato com aquisição gaussiana leve
 #' @noRd
+
 TuneBoostTree_ProposeInternalBayesianCandidate <- function(
   history,
   bounds,
@@ -2932,14 +3001,14 @@ TuneBoostTree_ProposeInternalBayesianCandidate <- function(
   seed = 42L
 ) {
 
-  if(exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)){
+  if(exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
     oldSeed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
   } else {
     oldSeed <- NULL
   }
   on.exit({
     if(is.null(oldSeed)) {
-      if(exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)){
+      if(exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
         rm(".Random.seed", envir = .GlobalEnv)
       }
     } else {
@@ -2951,10 +3020,10 @@ TuneBoostTree_ProposeInternalBayesianCandidate <- function(
   poolSize <- max(512L, min(8192L, 1024L * length(parameterNames)))
   pool <- TuneBoostTree_SampleCandidates(bounds, poolSize)
   pool <- TuneBoostTree_RemoveKnownCandidates(pool, history, parameterNames)
-  if(nrow(pool) == 0L){
+  if(nrow(pool) == 0L) {
     pool <- TuneBoostTree_SampleCandidates(bounds, poolSize)
   }
-  if(nrow(history) < max(4L, length(parameterNames) + 1L)){
+  if(nrow(history) < max(4L, length(parameterNames) + 1L)) {
     return(pool[1L, parameterNames, drop = FALSE])
   }
   score <- TuneBoostTree_AcquisitionScores(history, pool, bounds, acq, kappa, eps)
@@ -2966,6 +3035,7 @@ TuneBoostTree_ProposeInternalBayesianCandidate <- function(
 
 #' Pontuar conjunto de candidatos com posterior gaussiano
 #' @noRd
+
 TuneBoostTree_AcquisitionScores <- function(history, pool, bounds, acq = "ucb", kappa = 2.576, eps = 0) {
 
   parameterNames <- names(bounds)
@@ -2974,14 +3044,14 @@ TuneBoostTree_AcquisitionScores <- function(history, pool, bounds, acq = "ucb", 
   y <- as.numeric(history$Value)
   yMean <- mean(y)
   ySd <- stats::sd(y)
-  if(!is.finite(ySd) || ySd <= 1e-12){
+  if(!is.finite(ySd) || ySd <= 1e-12) {
     ySd <- 1
   }
   yScaled <- (y - yMean) / ySd
   lengthScale <- rep(0.35, length(parameterNames))
   kTrain <- TuneBoostTree_RbfKernel(xTrain, xTrain, lengthScale) + diag(1e-6, nrow(xTrain))
   cholK <- tryCatch(chol(kTrain), error = function(e) NULL)
-  if(is.null(cholK)){
+  if(is.null(cholK)) {
     return(stats::runif(nrow(pool)))
   }
   alpha <- backsolve(cholK, backsolve(cholK, yScaled, transpose = TRUE))
@@ -2990,11 +3060,11 @@ TuneBoostTree_AcquisitionScores <- function(history, pool, bounds, acq = "ucb", 
   v <- backsolve(cholK, t(kPool), transpose = TRUE)
   sigma <- sqrt(pmax(1 - colSums(v * v), 1e-12)) * ySd
   acq <- tolower(as.character(acq)[1L])
-  if(identical(acq, "ucb")){
+  if(identical(acq, "ucb")) {
     return(mu + as.numeric(kappa)[1L] * sigma)
   }
   z <- (mu - max(y) - as.numeric(eps)[1L]) / pmax(sigma, 1e-12)
-  if(identical(acq, "poi")){
+  if(identical(acq, "poi")) {
     return(stats::pnorm(z))
   }
   improvement <- (mu - max(y) - as.numeric(eps)[1L]) * stats::pnorm(z) + sigma * stats::dnorm(z)
@@ -3006,6 +3076,7 @@ TuneBoostTree_AcquisitionScores <- function(history, pool, bounds, acq = "ucb", 
 
 #' Núcleo exponencial quadrático
 #' @noRd
+
 TuneBoostTree_RbfKernel <- function(xA, xB, lengthScale) {
 
   xA <- as.matrix(xA)
@@ -3026,11 +3097,12 @@ TuneBoostTree_RbfKernel <- function(xA, xB, lengthScale) {
 
 #' Escalar parâmetros para hipercubo unitário
 #' @noRd
+
 TuneBoostTree_ScaleUnit <- function(parameterData, bounds) {
 
   parameterNames <- names(bounds)
   out <- as.data.frame(parameterData[, parameterNames, drop = FALSE], stringsAsFactors = FALSE)
-  for(parameterName in parameterNames){
+  for(parameterName in parameterNames) {
     lower <- as.numeric(bounds[[parameterName]][1L])
     upper <- as.numeric(bounds[[parameterName]][2L])
     out[[parameterName]] <- (as.numeric(out[[parameterName]]) - lower) / max(upper - lower, .Machine$double.eps)
@@ -3043,9 +3115,10 @@ TuneBoostTree_ScaleUnit <- function(parameterData, bounds) {
 
 #' Remover candidatos já avaliados
 #' @noRd
+
 TuneBoostTree_RemoveKnownCandidates <- function(pool, history, parameterNames) {
 
-  if(is.null(history) || nrow(history) == 0L){
+  if(is.null(history) || nrow(history) == 0L) {
     return(pool)
   }
   poolKey <- do.call(paste, c(TuneBoostTree_NormalizeParams(pool, parameterNames), sep = "|"))
@@ -3061,6 +3134,7 @@ TuneBoostTree_RemoveKnownCandidates <- function(pool, history, parameterNames) {
 
 #' Solicitar candidato a executável Limbo ask/tell externo
 #' @noRd
+
 TuneBoostTree_RequestLimboCandidate <- function(
   limboCommand,
   bounds,
@@ -3111,14 +3185,14 @@ TuneBoostTree_RequestLimboCandidate <- function(
     )
   )
   exitStatus <- attr(status, "status")
-  if(!is.null(exitStatus) && !identical(as.integer(exitStatus), 0L)){
+  if(!is.null(exitStatus) && !identical(as.integer(exitStatus), 0L)) {
     cli::cli_abort("Limbo command failed with exit status {exitStatus}: {paste(status, collapse = '\n')}")
   }
-  if(!file.exists(candidateFile)){
+  if(!file.exists(candidateFile)) {
     cli::cli_abort("Limbo command did not create `candidate.csv`.")
   }
   candidate <- utils::read.csv(candidateFile, stringsAsFactors = FALSE, check.names = FALSE)
-  if(nrow(candidate) != 1L){
+  if(nrow(candidate) != 1L) {
     cli::cli_abort("Limbo `candidate.csv` must contain exactly one candidate row.")
   }
   TuneBoostTree_ValidateCandidate(candidate, bounds)
@@ -3129,19 +3203,20 @@ TuneBoostTree_RequestLimboCandidate <- function(
 
 #' Validar e limitar candidato do otimizador
 #' @noRd
+
 TuneBoostTree_ValidateCandidate <- function(candidate, bounds) {
 
   parameterNames <- names(bounds)
   candidate <- as.data.frame(candidate, stringsAsFactors = FALSE)
   missingNames <- setdiff(parameterNames, names(candidate))
-  if(length(missingNames) > 0L){
-    cli::cli_abort("Optimizer candidate is missing required column(s): {paste(missingNames, collapse = ', ')}.")
+  if(length(missingNames) > 0L) {
+    cli::cli_abort("Optimizer candidate is missing required column(s): {TuneBoostTree_FormatQuotedNames(missingNames)}.")
   }
   candidate <- candidate[, parameterNames, drop = FALSE]
-  for(parameterName in parameterNames){
+  for(parameterName in parameterNames) {
     value <- as.numeric(candidate[[parameterName]])
-    if(anyNA(value) || any(!is.finite(value))){
-      cli::cli_abort("Optimizer candidate column `{parameterName}` contains non-finite value(s).")
+    if(anyNA(value) || any(!is.finite(value))) {
+      cli::cli_abort("Optimizer candidate column '{parameterName}' contains non-finite value(s).")
     }
     lower <- as.numeric(bounds[[parameterName]][1L])
     upper <- as.numeric(bounds[[parameterName]][2L])
@@ -3155,6 +3230,7 @@ TuneBoostTree_ValidateCandidate <- function(candidate, bounds) {
 
 #' Executar backend rBayesianOptimization
 #' @noRd
+
 TuneBoostTree_RunRBayesianOptimization <- function(
   objective,
   bounds,
@@ -3171,9 +3247,9 @@ TuneBoostTree_RunRBayesianOptimization <- function(
   set.seed(as.integer(seed))
   normalizedBounds <- lapply(bounds, function(x) c(as.numeric(x[1L]), as.numeric(x[2L])))
   parameterNames <- names(bounds)
-  if(!is.null(initGridDt)){
+  if(!is.null(initGridDt)) {
     initGridDt <- as.data.frame(initGridDt, stringsAsFactors = FALSE)
-    if("Value" %in% names(initGridDt)){
+    if("Value" %in% names(initGridDt)) {
       initGridDt <- initGridDt[is.finite(as.numeric(initGridDt$Value)), c(parameterNames, "Value"), drop = FALSE]
     } else {
       initGridDt <- NULL
@@ -3202,15 +3278,16 @@ TuneBoostTree_RunRBayesianOptimization <- function(
 
 #' Amostrar candidatos do otimizador interno
 #' @noRd
+
 TuneBoostTree_SampleCandidates <- function(bounds, n) {
 
   parameterNames <- names(bounds)
   n <- as.integer(n)
   out <- as.data.frame(setNames(rep(list(numeric(n)), length(parameterNames)), parameterNames))
-  if(n <= 0L){
+  if(n <= 0L) {
     return(out)
   }
-  for(parameterName in parameterNames){
+  for(parameterName in parameterNames) {
     lower <- as.numeric(bounds[[parameterName]][1L])
     upper <- as.numeric(bounds[[parameterName]][2L])
     out[[parameterName]] <- stats::runif(n, lower, upper)
@@ -3223,6 +3300,7 @@ TuneBoostTree_SampleCandidates <- function(bounds, n) {
 
 #' Otimizar limiar de decisão a partir de predições de validação cruzada
 #' @noRd
+
 TuneBoostTree_OptimizeThresholdCv <- function(
   balancedFolds,
   hyperparameters,
@@ -3254,6 +3332,7 @@ TuneBoostTree_OptimizeThresholdCv <- function(
 
 #' Executar predições de CV sem parada antecipada
 #' @noRd
+
 TuneBoostTree_RunCvPredictions <- function(
   balancedFolds,
   hyperparameters,
@@ -3270,7 +3349,7 @@ TuneBoostTree_RunCvPredictions <- function(
   workerThreads <- max(1L, as.integer(nThreads))
   foldIds <- seq_along(balancedFolds)
   TuneBoostTree_SetPassiveOpenMp()
-  if(nWorkers == 1L){
+  if(nWorkers == 1L) {
     foldResults <- lapply(
       X = foldIds,
       FUN = function(i) {
@@ -3286,7 +3365,7 @@ TuneBoostTree_RunCvPredictions <- function(
         )
       }
     )
-  } else if(.Platform$OS.type == "windows"){
+  } else if(.Platform$OS.type == "windows") {
     cluster <- parallel::makeCluster(nWorkers)
     on.exit(parallel::stopCluster(cluster), add = TRUE)
 
@@ -3321,7 +3400,7 @@ TuneBoostTree_RunCvPredictions <- function(
   }
   invalidFold <- vapply(foldResults, TuneBoostTree_IsInvalidFoldPredictionResult, logical(1L))
 
-  if(any(invalidFold)){
+  if(any(invalidFold)) {
     failedFolds <- paste(foldIds[invalidFold], collapse = ", ")
     cli::cli_abort("Validation prediction fold(s) failed before returning predictions: {failedFolds}.")
   }
@@ -3337,13 +3416,14 @@ TuneBoostTree_RunCvPredictions <- function(
 
 #' Verificar resultado inválido de fold de predição
 #' @noRd
+
 TuneBoostTree_IsInvalidFoldPredictionResult <- function(foldResult) {
 
-  if(inherits(foldResult, "try-error") || inherits(foldResult, "error")){
+  if(inherits(foldResult, "try-error") || inherits(foldResult, "error")) {
     return(TRUE)
   }
 
-  if(!is.list(foldResult)){
+  if(!is.list(foldResult)) {
     return(TRUE)
   }
 
@@ -3356,6 +3436,7 @@ TuneBoostTree_IsInvalidFoldPredictionResult <- function(foldResult) {
 
 #' Executar um fold de predição por identificador
 #' @noRd
+
 TuneBoostTree_RunFoldPredictionById <- function(
   foldId,
   balancedFolds,
@@ -3385,6 +3466,7 @@ TuneBoostTree_RunFoldPredictionById <- function(
 
 #' Executar um fold de predição
 #' @noRd
+
 TuneBoostTree_RunOneFoldPrediction <- function(
   foldData,
   hyperparameters,
@@ -3421,7 +3503,7 @@ TuneBoostTree_RunOneFoldPrediction <- function(
     engine = engine
   )
 
-  if(engine == "xgboost"){
+  if(engine == "xgboost") {
     foldModel <- xgboost::xgb.train(
       params = paramsValue,
       data = trainObject,
@@ -3451,6 +3533,7 @@ TuneBoostTree_RunOneFoldPrediction <- function(
 
 #' Otimizar limiar de classificação binária
 #' @noRd
+
 TuneBoostTree_OptimizeThreshold <- function(actual, predicted) {
 
   actual <- as.integer(actual)
@@ -3458,7 +3541,7 @@ TuneBoostTree_OptimizeThreshold <- function(actual, predicted) {
   valid <- is.finite(predicted) & !is.na(actual)
   actual <- actual[valid]
   predicted <- predicted[valid]
-  if(length(actual) == 0L || length(unique(actual)) < 2L){
+  if(length(actual) == 0L || length(unique(actual)) < 2L) {
     return(
       list(
         threshold = 0.5,
@@ -3489,22 +3572,23 @@ TuneBoostTree_OptimizeThreshold <- function(actual, predicted) {
 
 #' Calculate F1 Score
 #' @noRd
+
 TuneBoostTree_F1Score <- function(actual, predictedClass) {
 
   tp <- sum(actual == 1L & predictedClass)
   fp <- sum(actual == 0L & predictedClass)
   fn <- sum(actual == 1L & !predictedClass)
-  if((tp + fp) == 0L){
+  if((tp + fp) == 0L) {
     precision <- 0
   } else {
     precision <- tp / (tp + fp)
   }
-  if((tp + fn) == 0L){
+  if((tp + fn) == 0L) {
     recall <- 0
   } else {
     recall <- tp / (tp + fn)
   }
-  if((precision + recall) == 0){
+  if((precision + recall) == 0) {
     return(0)
   }
   2 * precision * recall / (precision + recall)
@@ -3522,28 +3606,29 @@ TuneBoostTree_F1Score <- function(actual, predictedClass) {
 #'
 #' @return Numeric PR-AUC value.
 #' @noRd
+
 TuneBoostTree_CalculatePrAuc <- function(actual, predicted, backend = "auto") {
 
   backend <- TuneBoostTree_SelectPrAucBackend(backend)
   actual <- as.integer(actual)
   predicted <- as.numeric(predicted)
-  if(length(actual) != length(predicted) || length(actual) == 0L){
+  if(length(actual) != length(predicted) || length(actual) == 0L) {
     return(NA_real_)
   }
-  if(anyNA(actual) || anyNA(predicted) || any(!is.finite(predicted))){
+  if(anyNA(actual) || anyNA(predicted) || any(!is.finite(predicted))) {
     return(NA_real_)
   }
   positiveCount <- sum(actual == 1L)
-  if(positiveCount == 0L){
+  if(positiveCount == 0L) {
     return(NA_real_)
   }
-  if(identical(backend, "c")){
+  if(identical(backend, "c")) {
     return(TuneBoostTree_CalculatePrAucC(actual, predicted))
   }
-  if(identical(backend, "fortran")){
+  if(identical(backend, "fortran")) {
     return(TuneBoostTree_CalculatePrAucFortran(actual, predicted))
   }
-  if(identical(backend, "rfast")){
+  if(identical(backend, "rfast")) {
     return(TuneBoostTree_CalculatePrAucRfast(actual, predicted, positiveCount))
   }
   TuneBoostTree_CalculatePrAucR(actual, predicted, positiveCount)
@@ -3563,31 +3648,32 @@ TuneBoostTree_CalculatePrAuc <- function(actual, predicted, backend = "auto") {
 #'
 #' @return Nome do backend resolvido.
 #' @noRd
+
 TuneBoostTree_SelectPrAucBackend <- function(backend = "auto") {
 
   backend <- match.arg(
     as.character(backend)[1L],
     c("auto", "c", "fortran", "rfast", "r")
   )
-  if(identical(backend, "auto")){
-    if(TuneBoostTree_LoadNativeBackend("c")){
+  if(identical(backend, "auto")) {
+    if(TuneBoostTree_LoadNativeBackend("c")) {
       return("c")
     }
-    if(TuneBoostTree_LoadNativeBackend("fortran")){
+    if(TuneBoostTree_LoadNativeBackend("fortran")) {
       return("fortran")
     }
-    if(requireNamespace("Rfast", quietly = TRUE)){
+    if(requireNamespace("Rfast", quietly = TRUE)) {
       return("rfast")
     }
     return("r")
   }
-  if(identical(backend, "c") && !TuneBoostTree_LoadNativeBackend("c")){
+  if(identical(backend, "c") && !TuneBoostTree_LoadNativeBackend("c")) {
     return("r")
   }
-  if(identical(backend, "fortran") && !TuneBoostTree_LoadNativeBackend("fortran")){
+  if(identical(backend, "fortran") && !TuneBoostTree_LoadNativeBackend("fortran")) {
     return("r")
   }
-  if(identical(backend, "rfast") && !requireNamespace("Rfast", quietly = TRUE)){
+  if(identical(backend, "rfast") && !requireNamespace("Rfast", quietly = TRUE)) {
     return("r")
   }
   backend
@@ -3604,6 +3690,7 @@ TuneBoostTree_SelectPrAucBackend <- function(backend = "auto") {
 #'
 #' @return Lógico indicando se o símbolo está disponível.
 #' @noRd
+
 TuneBoostTree_LoadNativeBackend <- function(backend) {
 
   packageDll <- "TuneBoostTreeBayesian"
@@ -3616,6 +3703,7 @@ TuneBoostTree_LoadNativeBackend <- function(backend) {
 #' Calcular PR-AUC com C compilado
 #'
 #' @noRd
+
 TuneBoostTree_CalculatePrAucC <- function(actual, predicted) {
 
   as.numeric(.Call("tbtb_pr_auc_c", actual, predicted, PACKAGE = "TuneBoostTreeBayesian"))
@@ -3626,6 +3714,7 @@ TuneBoostTree_CalculatePrAucC <- function(actual, predicted) {
 
 #' Calcular PR-AUC com Fortran compilado
 #' @noRd
+
 TuneBoostTree_CalculatePrAucFortran <- function(actual, predicted) {
 
   out <- .Fortran(
@@ -3644,6 +3733,7 @@ TuneBoostTree_CalculatePrAucFortran <- function(actual, predicted) {
 
 #' Calcular PR-AUC com ordenação Rfast
 #' @noRd
+
 TuneBoostTree_CalculatePrAucRfast <- function(actual, predicted, positiveCount = sum(actual == 1L)) {
 
   orderIndex <- Rfast::Order(as.numeric(predicted), stable = TRUE, descending = TRUE)
@@ -3655,6 +3745,7 @@ TuneBoostTree_CalculatePrAucRfast <- function(actual, predicted, positiveCount =
 
 #' Calcular PR-AUC com ordenação em R base
 #' @noRd
+
 TuneBoostTree_CalculatePrAucR <- function(actual, predicted, positiveCount = sum(actual == 1L)) {
 
   orderIndex <- order(predicted, decreasing = TRUE)
@@ -3666,6 +3757,7 @@ TuneBoostTree_CalculatePrAucR <- function(actual, predicted, positiveCount = sum
 
 #' Acumular PR-AUC ordenada
 #' @noRd
+
 TuneBoostTree_CalculatePrAucOrdered <- function(actualOrd, positiveCount) {
 
   tp <- cumsum(actualOrd == 1L)
@@ -3687,21 +3779,22 @@ TuneBoostTree_CalculatePrAucOrdered <- function(actualOrd, positiveCount) {
 #'
 #' @return data.frame normalizado.
 #' @noRd
+
 TuneBoostTree_NormalizeParams <- function(parameterData, parameterNames) {
 
   parameterData <- as.data.frame(parameterData, stringsAsFactors = FALSE)
   parameterData <- parameterData[, parameterNames, drop = FALSE]
-  for(parameterName in parameterNames){
+  for(parameterName in parameterNames) {
     parameterData[[parameterName]] <- as.numeric(parameterData[[parameterName]])
   }
   integerParameters <- intersect(
     c("tree_depth", "min_n", "max_bin", "num_leaves", "min_data_in_leaf"),
     parameterNames
   )
-  for(parameterName in integerParameters){
+  for(parameterName in integerParameters) {
     parameterData[[parameterName]] <- as.integer(round(parameterData[[parameterName]]))
   }
-  for(parameterName in setdiff(parameterNames, integerParameters)){
+  for(parameterName in setdiff(parameterNames, integerParameters)) {
     parameterData[[parameterName]] <- round(parameterData[[parameterName]], digits = 12L)
   }
   parameterData
@@ -3720,6 +3813,7 @@ TuneBoostTree_NormalizeParams <- function(parameterData, parameterNames) {
 #'
 #' @return Logical scalar.
 #' @noRd
+
 TuneBoostTree_IsScoreMatch <- function(scoreA, scoreB, tolerance = 1e-6) {
 
   scoreA <- as.numeric(scoreA)
@@ -3733,15 +3827,16 @@ TuneBoostTree_IsScoreMatch <- function(scoreA, scoreB, tolerance = 1e-6) {
 
 #' Encontrar melhor iteração associada ao melhor score
 #' @noRd
+
 TuneBoostTree_FindBestIteration <- function(evaluationLog, hyperparameters, bestScore, bounds) {
 
-  if(is.null(evaluationLog) || nrow(evaluationLog) == 0L || is.null(bounds)){
+  if(is.null(evaluationLog) || nrow(evaluationLog) == 0L || is.null(bounds)) {
     return(NULL)
   }
 
   parameterNames <- names(bounds)
   missingNames <- setdiff(c(parameterNames, "Value", "bestIteration"), names(evaluationLog))
-  if(length(missingNames) > 0L){
+  if(length(missingNames) > 0L) {
     return(NULL)
   }
 
@@ -3751,7 +3846,7 @@ TuneBoostTree_FindBestIteration <- function(evaluationLog, hyperparameters, best
     logical(1L),
     scoreB = bestScore
   )
-  if(!any(scoreMatches)){
+  if(!any(scoreMatches)) {
     return(NULL)
   }
 
@@ -3759,20 +3854,20 @@ TuneBoostTree_FindBestIteration <- function(evaluationLog, hyperparameters, best
   parameterData <- TuneBoostTree_NormalizeParams(parameterData, parameterNames)
   logData <- TuneBoostTree_NormalizeParams(evaluationLog[, parameterNames, drop = FALSE], parameterNames)
   parameterMatches <- rep(TRUE, nrow(logData))
-  for(parameterName in parameterNames){
+  for(parameterName in parameterNames) {
     parameterMatches <- parameterMatches & logData[[parameterName]] == parameterData[[parameterName]][[1L]]
   }
 
   candidateRows <- which(scoreMatches & parameterMatches & is.finite(evaluationLog$bestIteration))
-  if(length(candidateRows) == 0L){
+  if(length(candidateRows) == 0L) {
     candidateRows <- which(scoreMatches & is.finite(evaluationLog$bestIteration))
   }
-  if(length(candidateRows) == 0L){
+  if(length(candidateRows) == 0L) {
     return(NULL)
   }
 
   bestIteration <- as.integer(round(evaluationLog$bestIteration[[candidateRows[[1L]]]]))
-  if(is.na(bestIteration) || bestIteration < 1L){
+  if(is.na(bestIteration) || bestIteration < 1L) {
     return(NULL)
   }
   bestIteration
@@ -3783,9 +3878,10 @@ TuneBoostTree_FindBestIteration <- function(evaluationLog, hyperparameters, best
 
 #' Criar grade inicial a partir do log de avaliações
 #' @noRd
+
 TuneBoostTree_CreateInitGrid <- function(evaluationLog, bounds) {
 
-  if(is.null(evaluationLog) || nrow(evaluationLog) == 0L){
+  if(is.null(evaluationLog) || nrow(evaluationLog) == 0L) {
     return(NULL)
   }
   TuneBoostTree_DeduplicateInitGrid(evaluationLog, bounds)
@@ -3796,22 +3892,23 @@ TuneBoostTree_CreateInitGrid <- function(evaluationLog, bounds) {
 
 #' Combinar grades iniciais antigas e novas
 #' @noRd
+
 TuneBoostTree_CombineInitGrid <- function(oldInitGrid, newInitGrid, bounds) {
 
-  if(is.null(oldInitGrid) || nrow(oldInitGrid) == 0L){
+  if(is.null(oldInitGrid) || nrow(oldInitGrid) == 0L) {
     return(TuneBoostTree_DeduplicateInitGrid(newInitGrid, bounds))
   }
-  if(is.null(newInitGrid) || nrow(newInitGrid) == 0L){
+  if(is.null(newInitGrid) || nrow(newInitGrid) == 0L) {
     return(TuneBoostTree_DeduplicateInitGrid(oldInitGrid, bounds))
   }
 
   commonNames <- union(names(oldInitGrid), names(newInitGrid))
   oldData <- as.data.frame(oldInitGrid, stringsAsFactors = FALSE)
   newData <- as.data.frame(newInitGrid, stringsAsFactors = FALSE)
-  for(name in setdiff(commonNames, names(oldData))){
+  for(name in setdiff(commonNames, names(oldData))) {
     oldData[[name]] <- NA
   }
-  for(name in setdiff(commonNames, names(newData))){
+  for(name in setdiff(commonNames, names(newData))) {
     newData[[name]] <- NA
   }
 
@@ -3826,14 +3923,15 @@ TuneBoostTree_CombineInitGrid <- function(oldInitGrid, newInitGrid, bounds) {
 
 #' Deduplicar grade inicial por parâmetros normalizados
 #' @noRd
+
 TuneBoostTree_DeduplicateInitGrid <- function(initGrid, bounds) {
 
-  if(is.null(initGrid)){
+  if(is.null(initGrid)) {
     return(NULL)
   }
 
   initGrid <- as.data.frame(initGrid, stringsAsFactors = FALSE)
-  if(nrow(initGrid) == 0L){
+  if(nrow(initGrid) == 0L) {
     return(initGrid)
   }
 
@@ -3843,16 +3941,16 @@ TuneBoostTree_DeduplicateInitGrid <- function(initGrid, bounds) {
   parameterData <- TuneBoostTree_ValidateCandidate(initGrid[, parameterNames, drop = FALSE], bounds)
   out <- data.frame(parameterData, stringsAsFactors = FALSE)
 
-  for(extraName in extraNames){
+  for(extraName in extraNames) {
     out[[extraName]] <- initGrid[[extraName]]
   }
 
-  if(!"Value" %in% names(out)){
+  if(!"Value" %in% names(out)) {
     out$Value <- NA_real_
   }
   out$Value <- as.numeric(out$Value)
 
-  if(nrow(out) == 0L){
+  if(nrow(out) == 0L) {
     return(out)
   }
 
@@ -3878,11 +3976,12 @@ TuneBoostTree_DeduplicateInitGrid <- function(initGrid, bounds) {
 
 #' Complete Parameter Grid Columns
 #' @noRd
+
 TuneBoostTree_CompleteParameterGrid <- function(gridData, bounds) {
 
   gridData <- as.data.frame(gridData, stringsAsFactors = FALSE)
-  for(parameterName in names(bounds)){
-    if(!parameterName %in% names(gridData)){
+  for(parameterName in names(bounds)) {
+    if(!parameterName %in% names(gridData)) {
       gridData[[parameterName]] <- mean(as.numeric(bounds[[parameterName]]))
     }
   }
@@ -3913,6 +4012,7 @@ TuneBoostTree_CompleteParameterGrid <- function(gridData, bounds) {
 #'   usados em `params`, nomes/tipos de features, níveis e nomes das classes,
 #'   metadados da fórmula, número de rodadas (`nRounds`), `threshold` e `engine`.
 #' @export
+
 FitBoostTreeModel <- function(
   formula,
   dataTrain,
@@ -3926,7 +4026,7 @@ FitBoostTreeModel <- function(
   engine = "lightgbm"
 ) {
 
-  if(!(engine %in% c("xgboost", "lightgbm"))){
+  if(!(engine %in% c("xgboost", "lightgbm"))) {
     cli::cli_abort("`engine` must be 'xgboost' or 'lightgbm'.")
   }
 
@@ -3940,18 +4040,18 @@ FitBoostTreeModel <- function(
 
   classCounts <- table(preparedTrain$yData)
 
-  if(length(classCounts) != 2L || any(classCounts == 0L)){
+  if(length(classCounts) != 2L || any(classCounts == 0L)) {
     cli::cli_abort("`dataTrain` must contain both binary classes.")
   }
 
-  if(is.null(scalePosWeight)){
+  if(is.null(scalePosWeight)) {
     scalePosWeight <- as.numeric(classCounts[["0"]] / classCounts[["1"]])
   } else {
     scalePosWeight <- as.numeric(scalePosWeight)
   }
 
-  if(is.null(hyperparameters$eval_metric)){
-    if(engine == "xgboost"){
+  if(is.null(hyperparameters$eval_metric)) {
+    if(engine == "xgboost") {
       evalMetric <- "aucpr"
     } else {
       evalMetric <- "average_precision"
@@ -3960,7 +4060,7 @@ FitBoostTreeModel <- function(
     evalMetric <- as.character(hyperparameters$eval_metric)
   }
 
-  if(!is.null(hyperparameters$scale_pos_weight)){
+  if(!is.null(hyperparameters$scale_pos_weight)) {
     scalePosWeight <- hyperparameters$scale_pos_weight
   }
 
@@ -3973,7 +4073,7 @@ FitBoostTreeModel <- function(
     engine = engine
   )
 
-  if(is.null(hyperparameters$trees)){
+  if(is.null(hyperparameters$trees)) {
     nRounds <- 100L
   } else {
     nRounds <- as.integer(hyperparameters$trees)
@@ -3987,7 +4087,7 @@ FitBoostTreeModel <- function(
     engine = engine
   )
 
-  if(engine == "xgboost"){
+  if(engine == "xgboost") {
     model <- xgboost::xgb.train(
       params = paramsValue,
       data = trainObject,
@@ -4005,17 +4105,17 @@ FitBoostTreeModel <- function(
       do.call(lightgbm::lgb.train, trainArgs),
       error = function(e) e
     )
-    if(inherits(model, "error") && paramsValue$metric %in% c("average_precision", "aucpr")){
+    if(inherits(model, "error") && paramsValue$metric %in% c("average_precision", "aucpr")) {
       paramsValue$metric <- "auc"
       trainArgs$params <- paramsValue
       model <- do.call(lightgbm::lgb.train, trainArgs)
     }
-    if(inherits(model, "error")){
+    if(inherits(model, "error")) {
       stop(model)
     }
   }
 
-  if(is.null(hyperparameters$threshold)){
+  if(is.null(hyperparameters$threshold)) {
     threshold <- 0.5
   } else {
     threshold <- as.numeric(hyperparameters$threshold)[1L]
@@ -4056,14 +4156,15 @@ FitBoostTreeModel <- function(
 #'   `probabilitySecondClass`. A segunda probabilidade corresponde à classe
 #'   positiva armazenada no modelo.
 #' @export
+
 PredictBoostTreeModel <- function(modelObj, newdata, threshold = NULL, engine = NULL) {
 
-  if(!is.data.frame(newdata) || nrow(newdata) == 0L){
+  if(!is.data.frame(newdata) || nrow(newdata) == 0L) {
     cli::cli_abort("`newdata` must be a non-empty data.frame.")
   }
 
-  if(is.null(threshold)){
-    if(!is.null(modelObj$threshold)){
+  if(is.null(threshold)) {
+    if(!is.null(modelObj$threshold)) {
       threshold <- modelObj$threshold
     } else {
       threshold <- 0.5
@@ -4072,23 +4173,23 @@ PredictBoostTreeModel <- function(modelObj, newdata, threshold = NULL, engine = 
 
   threshold <- as.numeric(threshold)
 
-  if(length(threshold) != 1L || is.na(threshold) || threshold <= 0 || threshold >= 1){
+  if(length(threshold) != 1L || is.na(threshold) || threshold <= 0 || threshold >= 1) {
     cli::cli_abort("`threshold` must be between 0 and 1.")
   }
 
-  if(is.null(engine)){
+  if(is.null(engine)) {
     engine <- modelObj$engine
   }
 
-  if(!(engine %in% c("xgboost", "lightgbm"))){
+  if(!(engine %in% c("xgboost", "lightgbm"))) {
     cli::cli_abort("Model engine must be 'xgboost' or 'lightgbm'.")
   }
 
   featureNames <- modelObj$featureNames
   missingFeatureNames <- setdiff(featureNames, names(newdata))
 
-  if(length(missingFeatureNames) > 0L){
-    cli::cli_abort("`newdata` is missing required predictors: {paste(missingFeatureNames, collapse = ', ')}")
+  if(length(missingFeatureNames) > 0L) {
+    cli::cli_abort("`newdata` is missing required predictors: {TuneBoostTree_FormatQuotedNames(missingFeatureNames)}")
   }
 
   newdataFrame <- as.data.frame(newdata)
@@ -4096,8 +4197,8 @@ PredictBoostTreeModel <- function(modelObj, newdata, threshold = NULL, engine = 
   storage.mode(numericMatrix) <- "double"
   colnames(numericMatrix) <- featureNames
 
-  if(engine == "xgboost"){
-    if(is.null(modelObj$params$nthread)){
+  if(engine == "xgboost") {
+    if(is.null(modelObj$params$nthread)) {
       nThreads <- 1L
     } else {
       nThreads <- as.integer(modelObj$params$nthread)
@@ -4153,6 +4254,7 @@ PredictBoostTreeModel <- function(modelObj, newdata, threshold = NULL, engine = 
 #'   `confusionSummary` é uma tibble com colunas `actual`, `predicted` e
 #'   `count`; `predictions` é o tibble retornado por [PredictBoostTreeModel()].
 #' @export
+
 PerformanceBoostTreeModel <- function(modelObj, testData, formula) {
 
   predictions <- PredictBoostTreeModel(modelObj, testData)
