@@ -1,6 +1,6 @@
-# TuneBoostTree
+# tunehyper
 
-`TuneBoostTreeBayesian` é um pacote R para ajuste Bayesiano de hiperparâmetros de árvores boosted binárias com LightGBM como engine padrão, XGBoost como engine alternativa obrigatória e `rBayesianOptimization` como otimizador padrão. O pacote foi preparado para execução dedicada em servidor Intel Xeon Platinum 8260 com 2 sockets NUMA, 48 cores físicos, 96 CPUs lógicas e grande capacidade de RAM. O padrão do pacote foi simplificado para otimizar exclusivamente os hiperparâmetros de `parsnip::boost_tree()` solicitados: `min_n`, `tree_depth`, `learn_rate`, `loss_reduction` e `sample_size`.
+`tunehyper` é um pacote R para ajuste Bayesiano de hiperparâmetros de árvores boosted binárias com LightGBM como engine padrão, XGBoost como engine alternativa obrigatória e `rBayesianOptimization` como otimizador padrão. O pacote foi preparado para execução dedicada em servidor Intel Xeon Platinum 8260 com 2 sockets NUMA, 48 cores físicos, 96 CPUs lógicas e grande capacidade de RAM. O padrão do pacote foi simplificado para otimizar exclusivamente os hiperparâmetros de `parsnip::boost_tree()` solicitados: `min_n`, `tree_depth`, `learn_rate`, `loss_reduction` e `sample_size`.
 
 ## API principal
 
